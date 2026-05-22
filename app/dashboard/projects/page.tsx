@@ -26,11 +26,11 @@ export default function ProjectsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch]     = useState('')
   const [overhead, setOverhead] = useState<number | null>(null)
-  const [activePreset, setActivePreset] = useState<number>(1)
+  const [activePreset, setActivePreset] = useState<number>(0)
 
-  // default: last 1 month
+  // default: all time
   const today = toDateStr(new Date())
-  const defaultFrom = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return toDateStr(d) })()
+  const defaultFrom = (() => { const d = new Date(); d.setFullYear(d.getFullYear() - 10); return toDateStr(d) })()
   const [dateFrom, setDateFrom] = useState(defaultFrom)
   const [dateTo,   setDateTo]   = useState(today)
 
