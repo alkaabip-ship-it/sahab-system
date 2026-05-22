@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import Papa from 'papaparse'
 
-export const maxDuration = 60   // Vercel Pro: up to 60 s
+export const maxDuration = 60
 
 function parseDate(val: string | undefined): Date | null {
   if (!val || val.trim() === '' || val.trim() === '-') return null
@@ -31,6 +32,10 @@ function mapBillStatus(val: string | undefined): string {
   if (v === 'paid') return 'PAID'
   if (v.includes('partial')) return 'PARTIAL'
   return 'UNPAID'
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, (i + 1) * size))
 }
 
 export async function POST(req: NextRequest) {
@@ -76,28 +81,30 @@ export async function POST(req: NextRequest) {
       if (bn && !uniqueBills.has(bn)) uniqueBills.set(bn, row)
     }
 
-    // ── Load all reference data in parallel (one shot each) ───────────
-    const [allProjects, allSuppliers, existingBills] = await Promise.all([
-      prisma.project.findMany({ select: { id: true, code: true, clientName: true, name: true } }),
-      prisma.supplier.findMany({ select: { id: true, name: true } }),
-      prisma.bill.findMany({
-        where: {
-          OR: [
-            { billNumber: { in: Array.from(uniqueBills.keys()) } },
-            ...(billIdCol
-              ? [{ zohoId: { in: Array.from(uniqueBills.values()).map(r => r[billIdCol!]?.trim()).filter(Boolean) } }]
-              : []),
-          ],
-        },
-        select: { id: true, billNumber: true, zohoId: true, projectId: true, isLinked: true, projectCode: true },
-      }),
-    ])
+    // ── Load reference data SEQUENTIALLY (connection_limit=1) ─────────
+    const allProjects = await prisma.project.findMany({
+      select: { id: true, code: true, clientName: true, name: true },
+    })
+    const allSuppliers = await prisma.supplier.findMany({ select: { id: true, name: true } })
+
+    const zohoIds = billIdCol
+      ? Array.from(uniqueBills.values()).map(r => r[billIdCol!]?.trim()).filter(Boolean)
+      : []
+    const existingBills = await prisma.bill.findMany({
+      where: {
+        OR: [
+          { billNumber: { in: Array.from(uniqueBills.keys()) } },
+          ...(zohoIds.length ? [{ zohoId: { in: zohoIds } }] : []),
+        ],
+      },
+      select: { id: true, billNumber: true, zohoId: true, projectId: true, isLinked: true, projectCode: true },
+    })
 
     const supplierMap = new Map(allSuppliers.map(s => [s.name.toLowerCase(), s]))
     const billByNum   = new Map(existingBills.map(b => [b.billNumber, b]))
     const billByZoho  = new Map(existingBills.filter(b => b.zohoId).map(b => [b.zohoId!, b]))
 
-    // ── Collect new vendors to create ─────────────────────────────────
+    // ── Create new vendors ────────────────────────────────────────────
     const newVendorNames = new Set<string>()
     for (const row of Array.from(uniqueBills.values())) {
       const name = vendorCol ? row[vendorCol]?.trim() : null
@@ -108,8 +115,10 @@ export async function POST(req: NextRequest) {
         data: Array.from(newVendorNames).map(name => ({ name, serviceType: 'OTHER', recommendation: 'UNDER_REVIEW' })),
         skipDuplicates: true,
       })
-      // Reload suppliers
-      const fresh = await prisma.supplier.findMany({ where: { name: { in: Array.from(newVendorNames) } }, select: { id: true, name: true } })
+      const fresh = await prisma.supplier.findMany({
+        where: { name: { in: Array.from(newVendorNames) } },
+        select: { id: true, name: true },
+      })
       for (const s of fresh) supplierMap.set(s.name.toLowerCase(), s)
     }
 
@@ -119,15 +128,15 @@ export async function POST(req: NextRequest) {
     let linked = 0, unlinked = 0
 
     for (const [billNumber, row] of Array.from(uniqueBills.entries())) {
-      const zohoId      = billIdCol ? row[billIdCol]?.trim() || null : null
-      const vendorName  = vendorCol ? row[vendorCol]?.trim() || null : null
-      const billDate    = parseDate(dateCol    ? row[dateCol]    : undefined) || new Date()
-      const dueDate     = parseDate(dueDateCol ? row[dueDateCol] : undefined)
-      const amount      = parseAmount(totalCol ? row[totalCol]   : undefined)
-      const status      = mapBillStatus(statusCol ? row[statusCol] : undefined)
-      const notes       = notesCol        ? row[notesCol]?.trim()         || '' : ''
-      const customerName = customerNameCol ? row[customerNameCol]?.trim() || null : null
-      const zohoProject  = projectNameCol  ? row[projectNameCol]?.trim()  || null : null
+      const zohoId       = billIdCol ? row[billIdCol]?.trim() || null : null
+      const vendorName   = vendorCol ? row[vendorCol]?.trim() || null : null
+      const billDate     = parseDate(dateCol    ? row[dateCol]    : undefined) || new Date()
+      const dueDate      = parseDate(dueDateCol ? row[dueDateCol] : undefined)
+      const amount       = parseAmount(totalCol ? row[totalCol]   : undefined)
+      const status       = mapBillStatus(statusCol ? row[statusCol] : undefined)
+      const notes        = notesCol        ? row[notesCol]?.trim()          || '' : ''
+      const customerName = customerNameCol ? row[customerNameCol]?.trim()  || null : null
+      const zohoProject  = projectNameCol  ? row[projectNameCol]?.trim()   || null : null
 
       const supplierId = vendorName ? (supplierMap.get(vendorName.toLowerCase())?.id ?? null) : null
 
@@ -158,14 +167,16 @@ export async function POST(req: NextRequest) {
         toUpdate.push({
           id: existing.id,
           data: {
-            amount, billDate, dueDate, status,
-            projectCode: effCode,
-            zohoCustomerName: customerName,
-            isLinked: effLinked,
-            updatedAt: new Date(),
-            zohoId: zohoId || undefined,
-            supplierId: supplierId || undefined,
-            projectId: effProjectId || undefined,
+            amount,
+            billDate,
+            dueDate:          dueDate      ?? null,
+            status,
+            projectCode:      effCode      ?? null,
+            zohoCustomerName: customerName ?? null,
+            isLinked:         effLinked,
+            zohoId:           zohoId       ?? null,
+            supplierId:       supplierId   ?? null,
+            projectId:        effProjectId ?? null,
           },
         })
         if (effLinked) linked++; else unlinked++
@@ -180,18 +191,50 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Execute sequentially (connection_limit=1 on Supabase pooler) ──
-    const CHUNK = 30
-    const chunks = <T>(arr: T[]) =>
-      Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK))
-
+    // ── Creates: single query ─────────────────────────────────────────
     if (toCreate.length > 0) {
       await prisma.bill.createMany({ data: toCreate, skipDuplicates: true })
     }
-    for (const chunk of chunks(toUpdate)) {
-      await prisma.$transaction(
-        chunk.map(u => prisma.bill.update({ where: { id: u.id }, data: u.data }))
-      )
+
+    // ── Updates: single raw SQL batch per 1000 rows ───────────────────
+    // Before: N/30 transactions × 32 round-trips each = hundreds of DB calls
+    // After:  1 UPDATE … FROM (VALUES …) per 1000 rows = ~1 round-trip total
+    if (toUpdate.length > 0) {
+      for (const batch of chunk(toUpdate, 1000)) {
+        const rows = Prisma.join(
+          batch.map(u => Prisma.sql`(
+            ${u.id}::text,
+            ${u.data.amount}::float8,
+            ${u.data.billDate}::timestamptz,
+            ${u.data.dueDate}::timestamptz,
+            ${u.data.status}::text,
+            ${u.data.projectCode}::text,
+            ${u.data.zohoCustomerName}::text,
+            ${u.data.isLinked}::bool,
+            ${u.data.zohoId}::text,
+            ${u.data.supplierId}::text,
+            ${u.data.projectId}::text
+          )`)
+        )
+        await prisma.$executeRaw`
+          UPDATE "Bill" AS b
+          SET
+            amount             = v.amount,
+            "billDate"         = v.bill_date,
+            "dueDate"          = v.due_date,
+            status             = v.status,
+            "projectCode"      = v.project_code,
+            "zohoCustomerName" = v.zoho_cust,
+            "isLinked"         = v.is_linked,
+            "zohoId"           = COALESCE(v.zoho_id,      b."zohoId"),
+            "supplierId"       = COALESCE(v.supplier_id,  b."supplierId"),
+            "projectId"        = COALESCE(v.project_id,   b."projectId"),
+            "updatedAt"        = NOW()
+          FROM (VALUES ${rows})
+            AS v(id, amount, bill_date, due_date, status, project_code, zoho_cust, is_linked, zoho_id, supplier_id, project_id)
+          WHERE b.id = v.id
+        `
+      }
     }
 
     await prisma.zohoSyncLog.create({
@@ -203,17 +246,13 @@ export async function POST(req: NextRequest) {
       },
     })
     await prisma.setting.upsert({
-        where: { key: 'LAST_SYNC_AT' },
-        update: { value: new Date().toISOString() },
-        create: { key: 'LAST_SYNC_AT', value: new Date().toISOString() },
+      where:  { key: 'LAST_SYNC_AT' },
+      update: { value: new Date().toISOString() },
+      create: { key: 'LAST_SYNC_AT', value: new Date().toISOString() },
     })
 
     return NextResponse.json({
-      added: toCreate.length,
-      updated: toUpdate.length,
-      linked,
-      unlinked,
-      total: uniqueBills.size,
+      added: toCreate.length, updated: toUpdate.length, linked, unlinked, total: uniqueBills.size,
     })
   } catch (err: any) {
     console.error('[upload/bills]', err)

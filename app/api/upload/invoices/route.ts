@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import Papa from 'papaparse'
 
 export const maxDuration = 60
@@ -32,6 +33,10 @@ function mapInvoiceStatus(val: string | undefined): string {
   if (v.includes('partial')) return 'PARTIAL'
   if (v === 'void') return 'VOID'
   return 'UNPAID'
+}
+
+function chunk<T>(arr: T[], size: number): T[][] {
+  return Array.from({ length: Math.ceil(arr.length / size) }, (_, i) => arr.slice(i * size, (i + 1) * size))
 }
 
 export async function POST(req: NextRequest) {
@@ -77,23 +82,23 @@ export async function POST(req: NextRequest) {
       if (num && !uniqueInvoices.has(num)) uniqueInvoices.set(num, row)
     }
 
-    // ── Load reference data in one shot ──────────────────────────────
+    // ── Load reference data SEQUENTIALLY (connection_limit=1) ─────────
+    const allProjects = await prisma.project.findMany({
+      select: { id: true, code: true, clientName: true, name: true },
+    })
+
     const zohoIds = invoiceIdCol
       ? Array.from(uniqueInvoices.values()).map(r => r[invoiceIdCol!]?.trim()).filter(Boolean)
       : []
-
-    const [allProjects, existingInvoices] = await Promise.all([
-      prisma.project.findMany({ select: { id: true, code: true, clientName: true, name: true } }),
-      prisma.invoice.findMany({
-        where: {
-          OR: [
-            { invoiceNumber: { in: Array.from(uniqueInvoices.keys()) } },
-            ...(zohoIds.length ? [{ zohoId: { in: zohoIds } }] : []),
-          ],
-        },
-        select: { id: true, invoiceNumber: true, zohoId: true, projectId: true },
-      }),
-    ])
+    const existingInvoices = await prisma.invoice.findMany({
+      where: {
+        OR: [
+          { invoiceNumber: { in: Array.from(uniqueInvoices.keys()) } },
+          ...(zohoIds.length ? [{ zohoId: { in: zohoIds } }] : []),
+        ],
+      },
+      select: { id: true, invoiceNumber: true, zohoId: true, projectId: true },
+    })
 
     const invByNum  = new Map(existingInvoices.map(i => [i.invoiceNumber, i]))
     const invByZoho = new Map(existingInvoices.filter(i => i.zohoId).map(i => [i.zohoId!, i]))
@@ -130,33 +135,69 @@ export async function POST(req: NextRequest) {
 
       const existing = (zohoId ? invByZoho.get(zohoId) : null) ?? invByNum.get(invoiceNumber)
 
-      const scalar = { customerName, amount, balance, invoiceDate, dueDate, status, notes, updatedAt: new Date() }
-
       if (existing) {
         const effProjectId = projectId || existing.projectId
         toUpdate.push({
           id: existing.id,
-          data: { ...scalar, zohoId: zohoId || undefined, projectId: effProjectId || undefined },
+          data: {
+            customerName,
+            amount,
+            balance,
+            invoiceDate,
+            dueDate:   dueDate    ?? null,
+            status,
+            notes:     notes      ?? null,
+            zohoId:    zohoId     ?? null,
+            projectId: effProjectId ?? null,
+          },
         })
         if (effProjectId) linked++; else unlinked++
       } else {
-        toCreate.push({ zohoId, invoiceNumber, ...scalar, projectId: projectId || null })
+        toCreate.push({ zohoId, invoiceNumber, customerName, amount, balance, invoiceDate, dueDate, status, notes, projectId: projectId || null })
         if (isLinked) linked++; else unlinked++
       }
     }
 
-    // ── Execute sequentially (connection_limit=1 on Supabase pooler) ──
-    const CHUNK = 30
-    const chunks = <T>(arr: T[]) =>
-      Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK))
-
+    // ── Creates: single query ─────────────────────────────────────────
     if (toCreate.length > 0) {
       await prisma.invoice.createMany({ data: toCreate, skipDuplicates: true })
     }
-    for (const chunk of chunks(toUpdate)) {
-      await prisma.$transaction(
-        chunk.map(u => prisma.invoice.update({ where: { id: u.id }, data: u.data }))
-      )
+
+    // ── Updates: single raw SQL batch per 1000 rows ───────────────────
+    if (toUpdate.length > 0) {
+      for (const batch of chunk(toUpdate, 1000)) {
+        const rows = Prisma.join(
+          batch.map(u => Prisma.sql`(
+            ${u.id}::text,
+            ${u.data.customerName}::text,
+            ${u.data.amount}::float8,
+            ${u.data.balance}::float8,
+            ${u.data.invoiceDate}::timestamptz,
+            ${u.data.dueDate}::timestamptz,
+            ${u.data.status}::text,
+            ${u.data.notes}::text,
+            ${u.data.zohoId}::text,
+            ${u.data.projectId}::text
+          )`)
+        )
+        await prisma.$executeRaw`
+          UPDATE "Invoice" AS i
+          SET
+            "customerName" = v.customer_name,
+            amount         = v.amount,
+            balance        = v.balance,
+            "invoiceDate"  = v.invoice_date,
+            "dueDate"      = v.due_date,
+            status         = v.status,
+            notes          = v.notes,
+            "zohoId"       = COALESCE(v.zoho_id,    i."zohoId"),
+            "projectId"    = COALESCE(v.project_id, i."projectId"),
+            "updatedAt"    = NOW()
+          FROM (VALUES ${rows})
+            AS v(id, customer_name, amount, balance, invoice_date, due_date, status, notes, zoho_id, project_id)
+          WHERE i.id = v.id
+        `
+      }
     }
 
     await prisma.zohoSyncLog.create({
