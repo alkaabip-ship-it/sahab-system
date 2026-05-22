@@ -145,18 +145,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Execute ───────────────────────────────────────────────────────
-    const CHUNK = 50
-    const chunks = <T>(arr: T[]) => Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK))
+    // ── Execute sequentially (connection_limit=1 on Supabase pooler) ──
+    const CHUNK = 30
+    const chunks = <T>(arr: T[]) =>
+      Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK))
 
-    await Promise.all([
-      toCreate.length > 0
-        ? prisma.invoice.createMany({ data: toCreate, skipDuplicates: true })
-        : Promise.resolve(),
-      ...chunks(toUpdate).map(chunk =>
-        prisma.$transaction(chunk.map(u => prisma.invoice.update({ where: { id: u.id }, data: u.data })))
-      ),
-    ])
+    if (toCreate.length > 0) {
+      await prisma.invoice.createMany({ data: toCreate, skipDuplicates: true })
+    }
+    for (const chunk of chunks(toUpdate)) {
+      await prisma.$transaction(
+        chunk.map(u => prisma.invoice.update({ where: { id: u.id }, data: u.data }))
+      )
+    }
 
     await prisma.zohoSyncLog.create({
       data: {

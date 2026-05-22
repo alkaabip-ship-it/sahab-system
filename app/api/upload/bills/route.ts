@@ -180,36 +180,33 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // ── Execute in parallel chunks ────────────────────────────────────
-    const CHUNK = 50
-    const chunks = <T>(arr: T[]) => Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK))
+    // ── Execute sequentially (connection_limit=1 on Supabase pooler) ──
+    const CHUNK = 30
+    const chunks = <T>(arr: T[]) =>
+      Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK))
 
-    await Promise.all([
-      // createMany is a single query
-      toCreate.length > 0
-        ? prisma.bill.createMany({ data: toCreate, skipDuplicates: true })
-        : Promise.resolve(),
-      // updates in parallel chunks
-      ...chunks(toUpdate).map(chunk =>
-        prisma.$transaction(chunk.map(u => prisma.bill.update({ where: { id: u.id }, data: u.data })))
-      ),
-    ])
+    if (toCreate.length > 0) {
+      await prisma.bill.createMany({ data: toCreate, skipDuplicates: true })
+    }
+    for (const chunk of chunks(toUpdate)) {
+      await prisma.$transaction(
+        chunk.map(u => prisma.bill.update({ where: { id: u.id }, data: u.data }))
+      )
+    }
 
-    await Promise.all([
-      prisma.zohoSyncLog.create({
-        data: {
-          syncType: 'BILLS_CSV',
-          status: 'SUCCESS',
-          message: `فواتير: ${toCreate.length} جديدة، ${toUpdate.length} محدّثة، ${linked} مرتبطة، ${unlinked} غير مرتبطة`,
-          itemsSynced: toCreate.length + toUpdate.length,
-        },
-      }),
-      prisma.setting.upsert({
+    await prisma.zohoSyncLog.create({
+      data: {
+        syncType: 'BILLS_CSV',
+        status: 'SUCCESS',
+        message: `فواتير: ${toCreate.length} جديدة، ${toUpdate.length} محدّثة، ${linked} مرتبطة، ${unlinked} غير مرتبطة`,
+        itemsSynced: toCreate.length + toUpdate.length,
+      },
+    })
+    await prisma.setting.upsert({
         where: { key: 'LAST_SYNC_AT' },
         update: { value: new Date().toISOString() },
         create: { key: 'LAST_SYNC_AT', value: new Date().toISOString() },
-      }),
-    ])
+    })
 
     return NextResponse.json({
       added: toCreate.length,
