@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
-import { HiCalendarDays, HiCheckCircle, HiExclamationTriangle, HiClipboardDocumentList } from 'react-icons/hi2'
+import { HiCalendarDays, HiCheckCircle, HiExclamationTriangle, HiClipboardDocumentList, HiDocumentChartBar, HiArrowTrendingUp, HiArrowTrendingDown } from 'react-icons/hi2'
 import Pagination from '@/components/Pagination'
 
 function formatNum(n: number) {
@@ -113,8 +113,8 @@ export default function ProjectsPage() {
 
   const periodMonths   = dateFrom && dateTo ? monthsBetween(dateFrom, dateTo) : null
   const periodOverhead = overhead !== null && periodMonths !== null ? overhead * periodMonths : null
+  const netProfit      = periodOverhead !== null ? totalProfit - periodOverhead : totalProfit
   const coveragePct    = periodOverhead !== null && periodOverhead > 0 ? Math.round((totalProfit / periodOverhead) * 100) : null
-  const coversSalaries = periodOverhead !== null ? totalProfit >= periodOverhead : null
 
   const formatDateDisplay = (s: string) =>
     s ? new Intl.DateTimeFormat(isAr ? 'ar-AE' : 'en-AE', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(s)) : ''
@@ -185,52 +185,124 @@ export default function ProjectsPage() {
         </div>
       </div>
 
-      {/* Summary Cards */}
+      {/* P&L Statement */}
       {!loading && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-            <p className="text-xs text-slate-400 mb-1">{t.projects.totalRevenue}</p>
-            <p className="text-lg font-bold text-slate-800">{formatNum(totalRevenue)}</p>
-            <p className="text-xs text-slate-400">{t.common.aed} · {t.common.exVat}</p>
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <HiDocumentChartBar size={16} className="text-slate-500" />
+              <h3 className="font-bold text-slate-700 text-sm">
+                {isAr ? 'قائمة الأرباح والخسائر' : 'Profit & Loss Statement'}
+              </h3>
+              <span className="text-xs text-slate-400 bg-white border border-slate-200 px-2 py-0.5 rounded-full">
+                {filtered.length} {isAr ? 'مشروع' : 'projects'}
+              </span>
+            </div>
+            <span className="text-xs text-slate-400">{periodLabel}</span>
           </div>
-          <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
-            <p className="text-xs text-slate-400 mb-1">{t.projects.totalCosts}</p>
-            <p className="text-lg font-bold text-red-500">{formatNum(totalCosts)}</p>
-            <p className="text-xs text-slate-400">{t.common.aed} · {t.common.exVat}</p>
-          </div>
-          <div className="bg-amber-50 rounded-xl border border-amber-100 shadow-sm p-4">
-            <p className="text-xs text-amber-500 mb-1">{t.projects.vat}</p>
-            <p className="text-lg font-bold text-amber-700">{formatNum(netVat)}</p>
-            <p className="text-xs text-amber-400">{t.projects.vatCollected} {formatNum(vatCollected)} · {t.projects.vatPaid} {formatNum(vatPaid)}</p>
-          </div>
-          <div className={`rounded-xl border shadow-sm p-4 ${totalProfit >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
-            <p className={`text-xs mb-1 ${totalProfit >= 0 ? 'text-green-500' : 'text-red-400'}`}>{t.projects.totalProfit}</p>
-            <p className={`text-lg font-bold ${totalProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{formatNum(totalProfit)}</p>
-            <p className={`text-xs ${totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{t.common.aed} · {t.projects.avgMargin} {avgMargin.toFixed(1)}%</p>
-          </div>
-        </div>
-      )}
 
-      {/* Overhead coverage banner */}
-      {!loading && overhead !== null && periodOverhead !== null && overhead > 0 && (
-        <div className={`rounded-xl border p-4 flex items-center gap-4 ${coversSalaries ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <span>{coversSalaries ? <HiCheckCircle size={28} className="text-green-500" /> : <HiExclamationTriangle size={28} className="text-red-500" />}</span>
-          <div className="flex-1">
-            <p className={`font-semibold text-sm ${coversSalaries ? 'text-green-800' : 'text-red-700'}`}>
-              {coversSalaries
-              ? (isAr ? `الأرباح تغطي المصاريف الثابتة للفترة` : `Profits cover fixed expenses`)
-              : (isAr ? `الأرباح لا تغطي المصاريف الثابتة للفترة` : `Profits don't cover fixed expenses`)}
-            </p>
-            <p className={`text-xs mt-0.5 ${coversSalaries ? 'text-green-600' : 'text-red-500'}`}>
-              {t.projects.fixedExpenses}: {formatNum(periodOverhead)} {t.common.aed} · {t.projects.totalProfit}: {formatNum(totalProfit)} {t.common.aed}
-              {coveragePct !== null && ` · ${t.projects.coverage(coveragePct)}`}
-            </p>
-          </div>
-          <div>
-            <p className={`text-xs ${coversSalaries ? 'text-green-500' : 'text-red-500'}`}>{coversSalaries ? t.projects.surplus : t.projects.deficit}</p>
-            <p className={`text-sm font-bold ${coversSalaries ? 'text-green-700' : 'text-red-700'}`}>
-              {formatNum(Math.abs(totalProfit - periodOverhead))} {t.common.aed}
-            </p>
+          <div className="divide-y divide-slate-50">
+            {/* Revenue */}
+            <div className="flex items-center justify-between px-5 py-3">
+              <div className="flex items-center gap-2">
+                <HiArrowTrendingUp size={15} className="text-sky-400" />
+                <span className="text-sm text-slate-600">{isAr ? 'الإيرادات (بدون ضريبة)' : 'Revenue (ex VAT)'}</span>
+              </div>
+              <span className="font-semibold text-slate-800 tabular-nums">
+                {formatNum(totalRevenue)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span>
+              </span>
+            </div>
+
+            {/* Direct Costs */}
+            <div className="flex items-center justify-between px-5 py-3">
+              <div className="flex items-center gap-2">
+                <HiArrowTrendingDown size={15} className="text-red-400" />
+                <span className="text-sm text-slate-600">{isAr ? 'التكاليف المباشرة (بدون ضريبة)' : 'Direct Costs (ex VAT)'}</span>
+              </div>
+              <span className="font-semibold text-red-500 tabular-nums">
+                ({formatNum(totalCosts)}) <span className="text-xs font-normal text-red-300">{t.common.aed}</span>
+              </span>
+            </div>
+
+            {/* Gross Profit */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50/80">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-slate-600">
+                  {isAr ? '= إجمالي الربح الخام' : '= Gross Profit'}
+                </span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${avgMargin >= 30 ? 'bg-green-100 text-green-700' : avgMargin >= 15 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>
+                  {avgMargin.toFixed(1)}%
+                </span>
+              </div>
+              <span className={`font-bold text-base tabular-nums ${totalProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                {totalProfit < 0 ? `(${formatNum(Math.abs(totalProfit))})` : formatNum(totalProfit)}
+                {' '}<span className="text-xs font-normal">{t.common.aed}</span>
+              </span>
+            </div>
+
+            {/* Fixed Expenses row — only if overhead is configured */}
+            {periodOverhead !== null && overhead !== null && overhead > 0 && (
+              <div className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <HiArrowTrendingDown size={15} className="text-orange-400" />
+                  <span className="text-sm text-slate-600">{isAr ? 'المصاريف الثابتة للفترة' : 'Fixed Expenses'}</span>
+                  <span className="text-xs text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                    {Math.round(periodMonths ?? 0)} {isAr ? 'شهر' : 'mo'} × {formatNum(overhead)} {t.common.aed}
+                  </span>
+                </div>
+                <span className="font-semibold text-orange-500 tabular-nums">
+                  ({formatNum(periodOverhead)}) <span className="text-xs font-normal text-orange-300">{t.common.aed}</span>
+                </span>
+              </div>
+            )}
+
+            {/* Net Profit — only if overhead is configured */}
+            {periodOverhead !== null && overhead !== null && overhead > 0 && (
+              <div className={`flex items-center justify-between px-5 py-4 ${netProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                <div className="flex items-center gap-2.5">
+                  {netProfit >= 0
+                    ? <HiCheckCircle size={22} className="text-green-500" />
+                    : <HiExclamationTriangle size={22} className="text-red-500" />}
+                  <div>
+                    <p className={`font-bold text-base ${netProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      {isAr ? 'صافي الربح' : 'Net Profit'}
+                    </p>
+                    {coveragePct !== null && (
+                      <p className={`text-xs ${netProfit >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+                        {isAr
+                          ? `يغطي ${coveragePct}% من المصاريف الثابتة`
+                          : `${coveragePct}% of fixed expenses covered`}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-end">
+                  <p className={`font-bold text-2xl tabular-nums ${netProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    {netProfit < 0 ? `(${formatNum(Math.abs(netProfit))})` : formatNum(netProfit)}
+                    {' '}<span className="text-sm font-normal">{t.common.aed}</span>
+                  </p>
+                  {netProfit < 0 && (
+                    <p className="text-xs text-red-400 mt-0.5">
+                      {isAr ? 'عجز' : 'Deficit'}: {formatNum(Math.abs(netProfit))} {t.common.aed}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* VAT footer row */}
+            <div className="flex items-center justify-between px-5 py-2.5 bg-amber-50/60 border-t border-amber-100">
+              <span className="text-xs text-amber-600 font-medium">
+                {isAr ? 'ضريبة القيمة المضافة الصافي' : 'Net VAT payable'}
+              </span>
+              <span className="text-xs font-semibold text-amber-700 tabular-nums">
+                {formatNum(netVat)} {t.common.aed}
+                <span className="text-amber-400 font-normal ms-1.5">
+                  ({isAr ? 'محصّل' : 'collected'} {formatNum(vatCollected)} − {isAr ? 'مدفوع' : 'paid'} {formatNum(vatPaid)})
+                </span>
+              </span>
+            </div>
           </div>
         </div>
       )}
