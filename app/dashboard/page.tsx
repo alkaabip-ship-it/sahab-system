@@ -4,11 +4,16 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import {
+  HiClipboardDocumentList, HiBolt, HiBriefcase, HiBanknotes,
+  HiArrowTrendingUp, HiAdjustmentsHorizontal, HiBell,
+  HiExclamationCircle, HiExclamationTriangle,
+} from 'react-icons/hi2'
 
-function KPICard({ title, value, sub, color, icon, delay = '' }: { title: string; value: string; sub?: string; color: string; icon: string; delay?: string }) {
+function KPICard({ title, value, sub, color, icon, delay = '' }: { title: string; value: string; sub?: string; color: string; icon: React.ReactNode; delay?: string }) {
   return (
     <div className={`bg-white rounded-xl shadow-sm border border-slate-100 p-5 flex items-start gap-4 card-hover animate-fade-up ${delay}`}>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-2xl flex-shrink-0 transition-transform duration-300 hover:scale-110 ${color}`}>{icon}</div>
+      <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-transform duration-300 hover:scale-110 ${color}`}>{icon}</div>
       <div className="flex-1 min-w-0">
         <p className="text-xs text-slate-500 mb-1 font-medium">{title}</p>
         <p className="text-xl font-bold text-slate-800 leading-none kpi-value">{value}</p>
@@ -59,14 +64,14 @@ export default function DashboardPage() {
       {/* Expiry Warnings */}
       {warnings.length > 0 && (
         <div className="space-y-2">
-          <p className="text-sm font-semibold text-slate-600">🔔 {t.dashboard.expiryWarnings}</p>
+          <p className="text-sm font-semibold text-slate-600 flex items-center gap-1.5"><HiBell size={16} /> {t.dashboard.expiryWarnings}</p>
           {warnings.map((w: any, i: number) => (
             <div key={i} className={`flex items-center gap-3 px-4 py-3 rounded-xl border text-sm ${
               w.expired || w.daysLeft <= 0 ? 'bg-red-50 border-red-200 text-red-800'
               : w.daysLeft <= 30 ? 'bg-red-50 border-red-200 text-red-700'
               : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}>
-              <span>{w.expired ? '🚨' : w.daysLeft <= 30 ? '🔴' : '⚠️'}</span>
+              <span>{w.expired ? <HiExclamationCircle size={18} className="text-red-600" /> : w.daysLeft <= 30 ? <HiExclamationCircle size={18} className="text-orange-500" /> : <HiExclamationTriangle size={18} className="text-amber-500" />}</span>
               <span className="flex-1 font-medium">{w.label}</span>
               <span className="text-xs">
                 {w.expired ? t.dashboard.expiredDaysAgo(Math.abs(w.daysLeft))
@@ -83,12 +88,12 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KPICard title={t.dashboard.totalProjects}  value={String(data.totalProjects)}                       icon="📋" color="bg-blue-50"   delay="delay-100" />
-        <KPICard title={t.dashboard.activeProjects}  value={String(data.activeProjects)}                      icon="⚡" color="bg-yellow-50" delay="delay-150" />
-        <KPICard title={t.dashboard.totalValue}      value={`${formatNum(data.totalValue)} ${t.common.aed}`}  icon="💼" color="bg-sky-50"    delay="delay-200" />
-        <KPICard title={t.dashboard.totalCosts}      value={`${formatNum(data.totalCosts)} ${t.common.aed}`}  icon="💸" color="bg-orange-50" delay="delay-250" />
-        <KPICard title={t.dashboard.netProfit}       value={`${formatNum(data.totalProfit)} ${t.common.aed}`} icon="📈" color={data.totalProfit >= 0 ? 'bg-green-50' : 'bg-red-50'} delay="delay-300" />
-        <KPICard title={t.dashboard.avgMargin}       value={`${data.avgProfitMargin.toFixed(1)}%`}            icon="🎯" color={data.avgProfitMargin >= 20 ? 'bg-green-50' : 'bg-red-50'} delay="delay-350" />
+        <KPICard title={t.dashboard.totalProjects}  value={String(data.totalProjects)}                       icon={<HiClipboardDocumentList size={24} className="text-blue-500" />}   color="bg-blue-50"   delay="delay-100" />
+        <KPICard title={t.dashboard.activeProjects}  value={String(data.activeProjects)}                      icon={<HiBolt size={24} className="text-yellow-500" />}                   color="bg-yellow-50" delay="delay-150" />
+        <KPICard title={t.dashboard.totalValue}      value={`${formatNum(data.totalValue)} ${t.common.aed}`}  icon={<HiBriefcase size={24} className="text-sky-500" />}                 color="bg-sky-50"    delay="delay-200" />
+        <KPICard title={t.dashboard.totalCosts}      value={`${formatNum(data.totalCosts)} ${t.common.aed}`}  icon={<HiBanknotes size={24} className="text-orange-500" />}              color="bg-orange-50" delay="delay-250" />
+        <KPICard title={t.dashboard.netProfit}       value={`${formatNum(data.totalProfit)} ${t.common.aed}`} icon={<HiArrowTrendingUp size={24} className={data.totalProfit >= 0 ? 'text-green-500' : 'text-red-500'} />} color={data.totalProfit >= 0 ? 'bg-green-50' : 'bg-red-50'} delay="delay-300" />
+        <KPICard title={t.dashboard.avgMargin}       value={`${data.avgProfitMargin.toFixed(1)}%`}            icon={<HiAdjustmentsHorizontal size={24} className={data.avgProfitMargin >= 20 ? 'text-green-500' : 'text-red-500'} />} color={data.avgProfitMargin >= 20 ? 'bg-green-50' : 'bg-red-50'} delay="delay-350" />
       </div>
 
       {/* Alerts row */}

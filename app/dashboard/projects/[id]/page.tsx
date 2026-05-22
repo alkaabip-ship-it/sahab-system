@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getStatusLabel, getStatusColor } from '@/lib/utils'
+import { HiPencil, HiTrash } from 'react-icons/hi2'
 
 function formatNum(n: number) {
   return new Intl.NumberFormat('ar-AE').format(Math.round(n))
@@ -215,14 +216,14 @@ export default function ProjectDetailPage() {
                 onClick={() => setEditing(true)}
                 className="text-sm px-3 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg transition-all"
               >
-                ✏️ تعديل
+                <HiPencil size={14} className="inline-block" /> تعديل
               </button>
               {!confirmDelete ? (
                 <button
                   onClick={() => setConfirmDelete(true)}
                   className="text-sm px-3 py-2 border border-red-200 text-red-400 hover:bg-red-50 rounded-lg transition-all"
                 >
-                  🗑 حذف
+                  <HiTrash size={14} className="inline-block" /> حذف
                 </button>
               ) : (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

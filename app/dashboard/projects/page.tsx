@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { HiCalendarDays, HiCheckCircle, HiExclamationTriangle, HiClipboardDocumentList } from 'react-icons/hi2'
 
 function formatNum(n: number) {
   return new Intl.NumberFormat('ar-AE').format(Math.round(n))
@@ -157,7 +158,7 @@ export default function ProjectsPage() {
 
           {/* Period summary */}
           <span className="text-xs text-slate-400 me-auto">
-            📅 {filtered.length} {isAr ? 'مشروع' : 'projects'}
+            <HiCalendarDays size={14} className="inline-block" /> {filtered.length} {isAr ? 'مشروع' : 'projects'}
             {periodMonths !== null && ` · ${Math.round(periodMonths)} ${isAr ? 'شهر' : 'mo'}`}
           </span>
         </div>
@@ -192,12 +193,12 @@ export default function ProjectsPage() {
       {/* Overhead coverage banner */}
       {!loading && overhead !== null && periodOverhead !== null && overhead > 0 && (
         <div className={`rounded-xl border p-4 flex items-center gap-4 ${coversSalaries ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
-          <span className="text-2xl">{coversSalaries ? '✅' : '⚠️'}</span>
+          <span>{coversSalaries ? <HiCheckCircle size={28} className="text-green-500" /> : <HiExclamationTriangle size={28} className="text-red-500" />}</span>
           <div className="flex-1">
             <p className={`font-semibold text-sm ${coversSalaries ? 'text-green-800' : 'text-red-700'}`}>
               {coversSalaries
-              ? (isAr ? `✅ الأرباح تغطي المصاريف الثابتة للفترة` : `✅ Profits cover fixed expenses`)
-              : (isAr ? `⚠️ الأرباح لا تغطي المصاريف الثابتة للفترة` : `⚠️ Profits don't cover fixed expenses`)}
+              ? (isAr ? `الأرباح تغطي المصاريف الثابتة للفترة` : `Profits cover fixed expenses`)
+              : (isAr ? `الأرباح لا تغطي المصاريف الثابتة للفترة` : `Profits don't cover fixed expenses`)}
             </p>
             <p className={`text-xs mt-0.5 ${coversSalaries ? 'text-green-600' : 'text-red-500'}`}>
               {t.projects.fixedExpenses}: {formatNum(periodOverhead)} {t.common.aed} · {t.projects.totalProfit}: {formatNum(totalProfit)} {t.common.aed}
@@ -231,7 +232,7 @@ export default function ProjectsPage() {
           </div>
         ) : filtered.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
-            <p className="text-4xl mb-3">📋</p>
+            <HiClipboardDocumentList size={48} className="mx-auto mb-3 text-slate-300" />
             <p>{isAr ? `لا توجد مشاريع في الفترة: ${periodLabel}` : `No projects in: ${periodLabel}`}</p>
           </div>
         ) : (

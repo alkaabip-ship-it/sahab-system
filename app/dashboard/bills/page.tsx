@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { HiDocumentText } from 'react-icons/hi2'
 
 type BillTab = 'all' | 'unlinked' | 'unpaid'
 
@@ -126,7 +127,7 @@ export default function BillsPage() {
             <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : bills.length === 0 ? (
-          <div className="text-center py-16 text-slate-400"><p className="text-4xl mb-3">🧾</p><p>{t.bills.noBills}</p></div>
+          <div className="text-center py-16 text-slate-400"><HiDocumentText size={48} className="mx-auto mb-3 text-slate-300" /><p>{t.bills.noBills}</p></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">

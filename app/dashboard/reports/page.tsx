@@ -3,6 +3,10 @@
 import { useState } from 'react'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import {
+  HiArrowTrendingUp, HiArrowTrendingDown, HiLink,
+  HiBriefcase, HiChartBarSquare,
+} from 'react-icons/hi2'
 
 function formatNum(n: number) { return new Intl.NumberFormat('ar-AE').format(Math.round(n)) }
 function formatDate(d: string | null, lang: string) {
@@ -22,12 +26,12 @@ export default function ReportsPage() {
   const [loaded, setLoaded] = useState(false)
 
   const REPORT_TYPES = [
-    { id: 'project-profitability', label: t.reports.projectProfitability,  desc: t.reports.projectProfitabilityDesc,  icon: '📈' },
-    { id: 'unlinked-bills',        label: t.reports.unlinkedBills,          desc: t.reports.unlinkedBillsDesc,          icon: '🔗' },
-    { id: 'unpaid-bills',          label: t.reports.unpaidBills,            desc: t.reports.unpaidBillsDesc,            icon: '💸' },
-    { id: 'top-suppliers',         label: t.reports.topSuppliers,           desc: t.reports.topSuppliersDesc,           icon: '⭐' },
-    { id: 'low-profit-projects',   label: t.reports.lowProfitProjects,      desc: t.reports.lowProfitProjectsDesc,      icon: '📉' },
-    { id: 'supplier-totals',       label: t.reports.supplierTotals,         desc: t.reports.supplierTotalsDesc,         icon: '💼' },
+    { id: 'project-profitability', label: t.reports.projectProfitability,  desc: t.reports.projectProfitabilityDesc,  icon: <HiArrowTrendingUp size={18} /> },
+    { id: 'unlinked-bills',        label: t.reports.unlinkedBills,          desc: t.reports.unlinkedBillsDesc,          icon: <HiLink size={18} /> },
+    { id: 'unpaid-bills',          label: t.reports.unpaidBills,            desc: t.reports.unpaidBillsDesc,            icon: <HiChartBarSquare size={18} /> },
+    { id: 'top-suppliers',         label: t.reports.topSuppliers,           desc: t.reports.topSuppliersDesc,           icon: <HiBriefcase size={18} /> },
+    { id: 'low-profit-projects',   label: t.reports.lowProfitProjects,      desc: t.reports.lowProfitProjectsDesc,      icon: <HiArrowTrendingDown size={18} /> },
+    { id: 'supplier-totals',       label: t.reports.supplierTotals,         desc: t.reports.supplierTotalsDesc,         icon: <HiBriefcase size={18} /> },
   ]
 
   async function loadReport(type: string) {
@@ -156,7 +160,7 @@ export default function ReportsPage() {
         {REPORT_TYPES.map((r) => (
           <button key={r.id} onClick={() => loadReport(r.id)}
             className={`p-4 rounded-xl border text-right transition-all ${selectedReport === r.id ? 'border-sky-400 bg-sky-50' : 'border-slate-100 bg-white hover:border-sky-200'}`}>
-            <p className="text-2xl mb-1">{r.icon}</p>
+            <p className="mb-1 text-sky-500">{r.icon}</p>
             <p className="text-sm font-semibold text-slate-800">{r.label}</p>
             <p className="text-xs text-slate-400 mt-0.5">{r.desc}</p>
           </button>
@@ -171,7 +175,7 @@ export default function ReportsPage() {
           </div>
         ) : !loaded ? (
           <div className="text-center py-16 text-slate-400">
-            <p className="text-4xl mb-3">📊</p>
+            <HiChartBarSquare size={48} className="mx-auto mb-3 text-slate-300" />
             <p>{t.reports.noData}</p>
           </div>
         ) : (

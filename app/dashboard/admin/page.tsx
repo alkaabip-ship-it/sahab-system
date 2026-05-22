@@ -2,6 +2,12 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import {
+  HiBuildingOffice2, HiBeaker, HiIdentification,
+  HiClipboardDocumentList, HiSignal, HiBriefcase,
+  HiChartBarSquare, HiUsers, HiCalendarDays,
+  HiExclamationCircle, HiExclamationTriangle, HiCheckCircle,
+} from 'react-icons/hi2'
 
 const PERIOD_LABEL: Record<string, string> = {
   MONTHLY:  'شهرياً',
@@ -9,12 +15,12 @@ const PERIOD_LABEL: Record<string, string> = {
   BIANNUAL: 'كل سنتين',
 }
 
-const EXPENSE_ICONS: Record<string, string> = {
-  RENT:      '🏢',
-  UTILITIES: '💧',
-  RESIDENCY: '🪪',
-  LICENSE:   '📋',
-  TELECOM:   '📡',
+const EXPENSE_ICONS: Record<string, React.ReactNode> = {
+  RENT:      <HiBuildingOffice2 size={20} />,
+  UTILITIES: <HiBeaker size={20} />,
+  RESIDENCY: <HiIdentification size={20} />,
+  LICENSE:   <HiClipboardDocumentList size={20} />,
+  TELECOM:   <HiSignal size={20} />,
 }
 
 // Keys that have an expiry date
@@ -138,7 +144,7 @@ export default function AdminPage() {
   if (!data) {
     return (
       <div className="text-center py-24 text-slate-400">
-        <p className="text-4xl mb-3">⚠️</p>
+        <HiExclamationTriangle size={48} className="mx-auto mb-3 text-slate-300" />
         <p>{t.admin.loadError}</p>
         <button onClick={loadData} className="mt-4 px-4 py-2 bg-sky-500 text-white text-sm rounded-lg">
           {t.common.retry}
@@ -165,7 +171,7 @@ export default function AdminPage() {
                 ? 'bg-red-50 border-red-200 text-red-700'
                 : 'bg-amber-50 border-amber-200 text-amber-800'
             }`}>
-              <span>{w.expired ? '🚨' : w.daysLeft <= 30 ? '🔴' : '⚠️'}</span>
+              <span>{w.expired ? <HiExclamationCircle size={18} className="text-red-600" /> : w.daysLeft <= 30 ? <HiExclamationCircle size={18} className="text-orange-500" /> : <HiExclamationTriangle size={18} className="text-amber-500" />}</span>
               <span className="flex-1">{w.label}</span>
               <span className="text-xs font-normal">
                 {w.expired
@@ -192,7 +198,7 @@ export default function AdminPage() {
       {/* Fixed expenses */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
         <h3 className="font-semibold text-slate-800 mb-5 flex items-center gap-2">
-          <span className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600">📊</span>
+          <span className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center text-orange-600"><HiChartBarSquare size={18} /></span>
           {t.admin.fixedExpensesTitle}
         </h3>
         <div className="space-y-5">
@@ -201,7 +207,7 @@ export default function AdminPage() {
             return (
               <div key={exp.key} className="border border-slate-100 rounded-xl p-4 space-y-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-xl">{EXPENSE_ICONS[exp.key] ?? '💼'}</span>
+                  <span className="text-orange-500">{EXPENSE_ICONS[exp.key] ?? <HiBriefcase size={20} />}</span>
                   <div>
                     <p className="text-sm font-medium text-slate-700">{exp.label}</p>
                     <p className="text-xs text-slate-400">{PERIOD_LABEL_T[exp.period]} · {formatNum(toMonthly(exp.amount, exp.period))} {t.common.aed}{t.common.perMonth}</p>
@@ -251,7 +257,7 @@ export default function AdminPage() {
       {/* Employees */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
         <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-          <span className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-green-600">👥</span>
+          <span className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-green-600"><HiUsers size={18} /></span>
           {t.admin.employees}
           <span className="mr-auto text-sm font-normal text-slate-500">
             {t.admin.totalSalaries}: {formatNum(monthlySalaries)} {t.common.aed}{t.common.perMonth}
@@ -339,7 +345,7 @@ export default function AdminPage() {
       {/* Annual breakdown */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
         <h3 className="font-semibold text-slate-800 mb-4 flex items-center gap-2">
-          <span className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600">📅</span>
+          <span className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center text-purple-600"><HiCalendarDays size={18} /></span>
           {t.admin.annualBreakdown}
         </h3>
         <div className="space-y-2 text-sm">

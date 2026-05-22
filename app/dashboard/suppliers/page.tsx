@@ -3,21 +3,27 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getStatusLabel, getStatusColor } from '@/lib/utils'
+import {
+  HiComputerDesktop, HiSpeakerWave, HiLightBulb, HiDocumentDuplicate,
+  HiViewColumns, HiWrench, HiSparkles, HiGift,
+  HiCamera, HiFilm, HiUserGroup, HiTruck, HiCube,
+  HiBuildingOffice2, HiCurrencyDollar, HiClipboardDocumentList,
+} from 'react-icons/hi2'
 
 const SERVICE_TYPES = [
-  { value: 'SCREENS',     label: 'شاشات وعروض',       emoji: '🖥' },
-  { value: 'AUDIO',       label: 'صوتيات',             emoji: '🔊' },
-  { value: 'LIGHTING',    label: 'إضاءة',              emoji: '💡' },
-  { value: 'PRINTING',    label: 'طباعة',              emoji: '🖨' },
-  { value: 'CARPET',      label: 'سجاد',               emoji: '🟫' },
-  { value: 'CARPENTRY',   label: 'نجارة وأثاث',        emoji: '🪑' },
-  { value: 'FLOWERS',     label: 'ورود وزهور',         emoji: '🌸' },
-  { value: 'HOSPITALITY', label: 'ضيافة',              emoji: '☕' },
-  { value: 'PHOTOGRAPHY', label: 'تصوير فوتوغرافي',   emoji: '📷' },
-  { value: 'VIDEO',       label: 'تصوير فيديو',        emoji: '🎬' },
-  { value: 'LABOR',       label: 'عمالة',              emoji: '👷' },
-  { value: 'TRANSPORT',   label: 'نقل',                emoji: '🚛' },
-  { value: 'OTHER',       label: 'أخرى',               emoji: '📦' },
+  { value: 'SCREENS',     label: 'شاشات وعروض',       icon: <HiComputerDesktop size={14} /> },
+  { value: 'AUDIO',       label: 'صوتيات',             icon: <HiSpeakerWave size={14} /> },
+  { value: 'LIGHTING',    label: 'إضاءة',              icon: <HiLightBulb size={14} /> },
+  { value: 'PRINTING',    label: 'طباعة',              icon: <HiDocumentDuplicate size={14} /> },
+  { value: 'CARPET',      label: 'سجاد',               icon: <HiViewColumns size={14} /> },
+  { value: 'CARPENTRY',   label: 'نجارة وأثاث',        icon: <HiWrench size={14} /> },
+  { value: 'FLOWERS',     label: 'ورود وزهور',         icon: <HiSparkles size={14} /> },
+  { value: 'HOSPITALITY', label: 'ضيافة',              icon: <HiGift size={14} /> },
+  { value: 'PHOTOGRAPHY', label: 'تصوير فوتوغرافي',   icon: <HiCamera size={14} /> },
+  { value: 'VIDEO',       label: 'تصوير فيديو',        icon: <HiFilm size={14} /> },
+  { value: 'LABOR',       label: 'عمالة',              icon: <HiUserGroup size={14} /> },
+  { value: 'TRANSPORT',   label: 'نقل',                icon: <HiTruck size={14} /> },
+  { value: 'OTHER',       label: 'أخرى',               icon: <HiCube size={14} /> },
 ]
 
 const SERVICE_COLORS: Record<string, string> = {
@@ -48,8 +54,8 @@ function formatNum(n: number) {
   return new Intl.NumberFormat('ar-AE').format(Math.round(n))
 }
 
-function getServiceEmoji(type: string) {
-  return SERVICE_TYPES.find(s => s.value === type)?.emoji ?? '📦'
+function getServiceIcon(type: string) {
+  return SERVICE_TYPES.find(s => s.value === type)?.icon ?? <HiCube size={14} />
 }
 
 function getServiceLabel(type: string) {
@@ -108,7 +114,7 @@ function AddSupplierModal({ onClose, onAdded }: { onClose: () => void; onAdded: 
             <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-bold mx-auto mb-1 ${SERVICE_COLORS[form.serviceType] ?? 'bg-slate-100 text-slate-700'}`}>
               {form.name.trim()[0] || '؟'}
             </div>
-            <p className="text-xs text-slate-400">{getServiceEmoji(form.serviceType)} {getServiceLabel(form.serviceType)}</p>
+            <p className="text-xs text-slate-400">{getServiceIcon(form.serviceType)} {getServiceLabel(form.serviceType)}</p>
           </div>
         </div>
 
@@ -138,7 +144,7 @@ function AddSupplierModal({ onClose, onAdded }: { onClose: () => void; onAdded: 
                       : 'border-slate-200 text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                   }`}
                 >
-                  <span className="text-lg">{s.emoji}</span>
+                  <span className="flex items-center justify-center">{s.icon}</span>
                   <span className="leading-tight text-center">{s.label}</span>
                 </button>
               ))}
@@ -269,7 +275,7 @@ export default function SuppliersPage() {
         >
           <option value="">جميع الخدمات</option>
           {SERVICE_TYPES.map((o) => (
-            <option key={o.value} value={o.value}>{o.emoji} {o.label}</option>
+            <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
         <select
@@ -286,8 +292,8 @@ export default function SuppliersPage() {
         <div className="flex items-center gap-1 bg-slate-50 rounded-lg p-1 border border-slate-200">
           <span className="text-xs text-slate-400 px-1">ترتيب:</span>
           {[
-            { key: 'amount', label: '💰 الأعلى تعاملاً' },
-            { key: 'deals',  label: '📋 الأكثر صفقات' },
+            { key: 'amount', label: 'الأعلى تعاملاً' },
+            { key: 'deals',  label: 'الأكثر صفقات' },
             { key: 'name',   label: 'أ-ي الاسم' },
           ].map(({ key, label }) => (
             <button
@@ -312,7 +318,7 @@ export default function SuppliersPage() {
         </div>
       ) : filtered.length === 0 ? (
         <div className="text-center py-16 text-slate-400 bg-white rounded-xl border border-slate-100">
-          <p className="text-5xl mb-3">🏢</p>
+          <HiBuildingOffice2 size={52} className="mx-auto mb-3 text-slate-300" />
           <p className="font-medium">لا يوجد موردون</p>
           <button
             onClick={() => setShowAdd(true)}
@@ -337,7 +343,7 @@ export default function SuppliersPage() {
                     {s.name}
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    {getServiceEmoji(s.serviceType)} {getServiceLabel(s.serviceType)}
+                    {getServiceIcon(s.serviceType)} {getServiceLabel(s.serviceType)}
                   </p>
                   {s.phone && (
                     <p className="text-xs text-slate-400 mt-0.5">📞 {s.phone}</p>

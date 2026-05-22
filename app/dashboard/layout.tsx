@@ -6,6 +6,11 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { signOut, useSession } from 'next-auth/react'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import {
+  HiSquares2X2, HiClipboardDocumentList, HiBuildingOffice2,
+  HiDocumentText, HiUsers, HiChartBarSquare, HiCog6Tooth,
+  HiArrowUpTray, HiCog8Tooth,
+} from 'react-icons/hi2'
 
 function LogoBrand() {
   return (
@@ -39,15 +44,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { t, lang, toggle } = useTranslation()
 
   const navItems = [
-    { href: '/dashboard',          label: t.nav.dashboard, icon: '◉' },
-    { href: '/dashboard/projects', label: t.nav.projects,  icon: '📋' },
-    { href: '/dashboard/suppliers',label: t.nav.suppliers, icon: '🏢' },
-    { href: '/dashboard/bills',    label: t.nav.bills,     icon: '🧾' },
-    { href: '/dashboard/clients',  label: t.nav.clients,   icon: '👥' },
-    { href: '/dashboard/reports',  label: t.nav.reports,   icon: '📊' },
-    { href: '/dashboard/admin',    label: t.nav.admin,     icon: '🏛️' },
-    { href: '/dashboard/upload',   label: t.nav.upload,    icon: '⬆️' },
-    { href: '/dashboard/settings', label: t.nav.settings,  icon: '⚙️' },
+    { href: '/dashboard',          label: t.nav.dashboard, icon: <HiSquares2X2 size={20} /> },
+    { href: '/dashboard/projects', label: t.nav.projects,  icon: <HiClipboardDocumentList size={20} /> },
+    { href: '/dashboard/suppliers',label: t.nav.suppliers, icon: <HiBuildingOffice2 size={20} /> },
+    { href: '/dashboard/bills',    label: t.nav.bills,     icon: <HiDocumentText size={20} /> },
+    { href: '/dashboard/clients',  label: t.nav.clients,   icon: <HiUsers size={20} /> },
+    { href: '/dashboard/reports',  label: t.nav.reports,   icon: <HiChartBarSquare size={20} /> },
+    { href: '/dashboard/admin',    label: t.nav.admin,     icon: <HiCog6Tooth size={20} /> },
+    { href: '/dashboard/upload',   label: t.nav.upload,    icon: <HiArrowUpTray size={20} /> },
+    { href: '/dashboard/settings', label: t.nav.settings,  icon: <HiCog8Tooth size={20} /> },
   ]
 
   function isActive(href: string) {
@@ -88,7 +93,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   : 'text-slate-400 hover:bg-slate-700 hover:text-white'
               }`}
             >
-              <span className={`text-lg flex-shrink-0 transition-transform duration-200 ${isActive(item.href) ? '' : 'group-hover:scale-110'}`}>{item.icon}</span>
+              <span className={`flex-shrink-0 transition-transform duration-200 ${isActive(item.href) ? '' : 'group-hover:scale-110'}`}>{item.icon}</span>
               {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
               {sidebarOpen && isActive(item.href) && (
                 <span className="ms-auto w-1.5 h-1.5 rounded-full bg-white opacity-80" />
@@ -157,7 +162,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             href="/dashboard/upload"
             className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-all"
           >
-            <span>⬆️</span>
+            <HiArrowUpTray size={16} />
             {t.nav.uploadCsv}
           </Link>
         </header>

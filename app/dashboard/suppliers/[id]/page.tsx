@@ -4,21 +4,22 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getStatusLabel, getStatusColor } from '@/lib/utils'
+import { HiPencil, HiTrash } from 'react-icons/hi2'
 
 const SERVICE_TYPES = [
-  { value: 'SCREENS',     label: 'شاشات وعروض',      emoji: '🖥' },
-  { value: 'AUDIO',       label: 'صوتيات',            emoji: '🔊' },
-  { value: 'LIGHTING',    label: 'إضاءة',             emoji: '💡' },
-  { value: 'PRINTING',    label: 'طباعة',             emoji: '🖨' },
-  { value: 'CARPET',      label: 'سجاد',              emoji: '🟫' },
-  { value: 'CARPENTRY',   label: 'نجارة وأثاث',       emoji: '🪑' },
-  { value: 'FLOWERS',     label: 'ورود وزهور',        emoji: '🌸' },
-  { value: 'HOSPITALITY', label: 'ضيافة',             emoji: '☕' },
-  { value: 'PHOTOGRAPHY', label: 'تصوير فوتوغرافي',  emoji: '📷' },
-  { value: 'VIDEO',       label: 'تصوير فيديو',       emoji: '🎬' },
-  { value: 'LABOR',       label: 'عمالة',             emoji: '👷' },
-  { value: 'TRANSPORT',   label: 'نقل',               emoji: '🚛' },
-  { value: 'OTHER',       label: 'أخرى',              emoji: '📦' },
+  { value: 'SCREENS',     label: 'شاشات وعروض' },
+  { value: 'AUDIO',       label: 'صوتيات' },
+  { value: 'LIGHTING',    label: 'إضاءة' },
+  { value: 'PRINTING',    label: 'طباعة' },
+  { value: 'CARPET',      label: 'سجاد' },
+  { value: 'CARPENTRY',   label: 'نجارة وأثاث' },
+  { value: 'FLOWERS',     label: 'ورود وزهور' },
+  { value: 'HOSPITALITY', label: 'ضيافة' },
+  { value: 'PHOTOGRAPHY', label: 'تصوير فوتوغرافي' },
+  { value: 'VIDEO',       label: 'تصوير فيديو' },
+  { value: 'LABOR',       label: 'عمالة' },
+  { value: 'TRANSPORT',   label: 'نقل' },
+  { value: 'OTHER',       label: 'أخرى' },
 ]
 
 function formatNum(n: number) {
@@ -170,7 +171,7 @@ export default function SupplierDetailPage() {
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
                     >
                       {SERVICE_TYPES.map(s => (
-                        <option key={s.value} value={s.value}>{s.emoji} {s.label}</option>
+                        <option key={s.value} value={s.value}>{s.label}</option>
                       ))}
                     </select>
                   </div>
@@ -226,14 +227,14 @@ export default function SupplierDetailPage() {
                 onClick={() => setEditing(true)}
                 className="text-sm px-3 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg transition-all"
               >
-                ✏️ تعديل
+                <HiPencil size={14} className="inline-block" /> تعديل
               </button>
               {!confirmDelete ? (
                 <button
                   onClick={() => setConfirmDelete(true)}
                   className="text-sm px-3 py-2 border border-red-200 text-red-400 hover:bg-red-50 rounded-lg transition-all"
                 >
-                  🗑 حذف
+                  <HiTrash size={14} className="inline-block" /> حذف
                 </button>
               ) : (
                 <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

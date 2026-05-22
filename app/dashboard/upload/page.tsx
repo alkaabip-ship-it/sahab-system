@@ -2,6 +2,10 @@
 
 import { useState, useRef } from 'react'
 import Link from 'next/link'
+import {
+  HiLightBulb, HiBuildingOffice2, HiDocumentText,
+  HiArrowUpTray, HiExclamationTriangle, HiMapPin,
+} from 'react-icons/hi2'
 
 interface UploadResult {
   added: number
@@ -166,10 +170,10 @@ export default function UploadPage() {
 
       {/* Export guide */}
       <div className="bg-sky-50 border border-sky-100 rounded-xl p-5">
-        <h3 className="font-semibold text-sky-800 mb-3">💡 كيف تصدّر من Zoho Books؟</h3>
+        <h3 className="font-semibold text-sky-800 mb-3 flex items-center gap-2"><HiLightBulb size={18} /> كيف تصدّر من Zoho Books؟</h3>
         <div className="grid md:grid-cols-3 gap-4 text-sm">
           <div>
-            <p className="font-medium text-sky-700 mb-1">🏢 الموردون</p>
+            <p className="font-medium text-sky-700 mb-1 flex items-center gap-1"><HiBuildingOffice2 size={16} /> الموردون</p>
             <ol className="space-y-0.5 text-sky-600 text-xs list-decimal list-inside">
               <li>Purchases → Vendors</li>
               <li>⋮ → Export Vendors</li>
@@ -177,7 +181,7 @@ export default function UploadPage() {
             </ol>
           </div>
           <div>
-            <p className="font-medium text-sky-700 mb-1">🧾 فواتير الموردين</p>
+            <p className="font-medium text-sky-700 mb-1 flex items-center gap-1"><HiDocumentText size={16} /> فواتير الموردين</p>
             <ol className="space-y-0.5 text-sky-600 text-xs list-decimal list-inside">
               <li>Purchases → Bills</li>
               <li>Export → CSV</li>
@@ -204,7 +208,7 @@ export default function UploadPage() {
         {/* Vendors */}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">🏢</div>
+            <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600"><HiBuildingOffice2 size={18} /></div>
             <div>
               <p className="font-semibold text-slate-800 text-sm">ملف الموردين</p>
               <p className="text-xs text-slate-400">Vendors.csv</p>
@@ -231,7 +235,7 @@ export default function UploadPage() {
         {/* Bills */}
         <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-5 space-y-3">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">🧾</div>
+            <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center text-green-600"><HiDocumentText size={18} /></div>
             <div>
               <p className="font-semibold text-slate-800 text-sm">فواتير الموردين</p>
               <p className="text-xs text-slate-400">Bill.csv</p>
@@ -298,7 +302,7 @@ export default function UploadPage() {
         >
           {bothLoading
             ? <><span className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"/>جاري رفع الملفات...</>
-            : <><span>⬆</span> رفع جميع الملفات</>}
+            : <><HiArrowUpTray size={16} className="inline-block" /> رفع جميع الملفات</>}
         </button>
       )}
 
@@ -306,7 +310,7 @@ export default function UploadPage() {
       {billResult && !billResult.error && (billResult.unlinked ?? 0) > 0 && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
           <p className="text-amber-800 font-medium text-sm mb-1">
-            ⚠️ {billResult.unlinked} فاتورة غير مرتبطة بمشروع
+            <HiExclamationTriangle size={16} className="inline-block" /> {billResult.unlinked} فاتورة غير مرتبطة بمشروع
           </p>
           <p className="text-amber-600 text-xs mb-3">
             النظام يربط الفواتير تلقائياً عبر اسم العميل. إذا لم يتطابق، ارفع الملف مجدداً بعد
@@ -323,7 +327,7 @@ export default function UploadPage() {
 
       {/* Column reference */}
       <div className="bg-slate-50 rounded-xl border border-slate-100 p-5">
-        <h3 className="font-semibold text-slate-700 mb-4 text-sm">📌 الأعمدة المعروفة تلقائياً من Zoho Books</h3>
+        <h3 className="font-semibold text-slate-700 mb-4 text-sm flex items-center gap-2"><HiMapPin size={16} /> الأعمدة المعروفة تلقائياً من Zoho Books</h3>
         <div className="grid md:grid-cols-3 gap-6 text-xs">
           <div>
             <p className="font-medium text-slate-600 mb-2">Vendors.csv</p>

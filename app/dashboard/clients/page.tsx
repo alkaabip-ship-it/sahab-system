@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { HiUsers, HiTrophy, HiCurrencyDollar } from 'react-icons/hi2'
 
 function formatNum(n: number) {
   return new Intl.NumberFormat('ar-AE').format(Math.round(n))
@@ -47,7 +48,7 @@ export default function ClientsPage() {
   }
 
   if (!data) {
-    return <div className="text-center py-24 text-slate-400"><p className="text-4xl mb-3">👥</p><p>{t.common.error}</p></div>
+    return <div className="text-center py-24 text-slate-400"><HiUsers size={48} className="mx-auto mb-3 text-slate-300" /><p>{t.common.error}</p></div>
   }
 
   const { clients, topByActivity, topByPaid } = data
@@ -87,7 +88,7 @@ export default function ClientsPage() {
         {/* Most active client */}
         {topByActivity && (
           <div className="bg-sky-50 rounded-xl border border-sky-100 shadow-sm p-5 card-hover animate-fade-up delay-200">
-            <p className="text-xs text-sky-500 mb-2 font-medium">🏆 {isAr ? 'أكثر عميل تعاملاً' : 'Most Active Client'}</p>
+            <p className="text-xs text-sky-500 mb-2 font-medium flex items-center gap-1"><HiTrophy size={14} /> {isAr ? 'أكثر عميل تعاملاً' : 'Most Active Client'}</p>
             <div className="flex items-center gap-3">
               <Avatar name={topByActivity.name} />
               <div className="flex-1 min-w-0">
@@ -107,7 +108,7 @@ export default function ClientsPage() {
         {/* Top payer */}
         {topByPaid && (
           <div className="bg-green-50 rounded-xl border border-green-100 shadow-sm p-5 card-hover animate-fade-up delay-300">
-            <p className="text-xs text-green-600 mb-2 font-medium">💰 {isAr ? 'أكثر عميل دفعاً' : 'Top Payer'}</p>
+            <p className="text-xs text-green-600 mb-2 font-medium flex items-center gap-1"><HiCurrencyDollar size={14} /> {isAr ? 'أكثر عميل دفعاً' : 'Top Payer'}</p>
             <div className="flex items-center gap-3">
               <Avatar name={topByPaid.name} />
               <div className="flex-1 min-w-0">
@@ -152,7 +153,7 @@ export default function ClientsPage() {
       <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
         {sorted.length === 0 ? (
           <div className="text-center py-16 text-slate-400">
-            <p className="text-4xl mb-3">👥</p>
+            <HiUsers size={48} className="mx-auto mb-3 text-slate-300" />
             <p>{isAr ? 'لا يوجد عملاء' : 'No clients found'}</p>
           </div>
         ) : (
