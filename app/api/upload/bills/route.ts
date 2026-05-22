@@ -4,26 +4,20 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import Papa from 'papaparse'
 
-// Zoho Books Bill.csv actual columns:
-// Bill Date, Due Date, Bill ID, Vendor Name, Bill Number, Total, Balance,
-// Vendor Notes, Bill Status, Customer Name, Project Name, ...
+export const maxDuration = 60   // Vercel Pro: up to 60 s
 
 function parseDate(val: string | undefined): Date | null {
   if (!val || val.trim() === '' || val.trim() === '-') return null
-  const clean = val.trim()
-  // YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}/.test(clean)) {
-    const d = new Date(clean + 'T00:00:00')
-    return isNaN(d.getTime()) ? null : d
+  const c = val.trim()
+  if (/^\d{4}-\d{2}-\d{2}/.test(c)) {
+    const d = new Date(c + 'T00:00:00'); return isNaN(d.getTime()) ? null : d
   }
-  // DD/MM/YYYY
-  const parts = clean.split(/[\/\-\.]/)
-  if (parts.length === 3 && parts[2].length === 4) {
-    const d = new Date(`${parts[2]}-${parts[1].padStart(2,'0')}-${parts[0].padStart(2,'0')}T00:00:00`)
+  const p = c.split(/[\/\-\.]/)
+  if (p.length === 3 && p[2].length === 4) {
+    const d = new Date(`${p[2]}-${p[1].padStart(2,'0')}-${p[0].padStart(2,'0')}T00:00:00`)
     if (!isNaN(d.getTime())) return d
   }
-  const d = new Date(clean)
-  return isNaN(d.getTime()) ? null : d
+  const d = new Date(c); return isNaN(d.getTime()) ? null : d
 }
 
 function parseAmount(val: string | undefined): number {
@@ -36,7 +30,6 @@ function mapBillStatus(val: string | undefined): string {
   const v = val.toLowerCase().trim()
   if (v === 'paid') return 'PAID'
   if (v.includes('partial')) return 'PARTIAL'
-  // 'Overdue', 'Open', 'Draft' etc → UNPAID
   return 'UNPAID'
 }
 
@@ -50,184 +43,183 @@ export async function POST(req: NextRequest) {
     if (!file) return NextResponse.json({ error: 'لم يتم رفع ملف' }, { status: 400 })
 
     const text = await file.text()
-
     const { data } = Papa.parse<Record<string, string>>(text, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (h) => h.trim(),
+      header: true, skipEmptyLines: true, transformHeader: h => h.trim(),
     })
 
-    if (data.length === 0) {
-      return NextResponse.json({ error: 'الملف فارغ أو غير صالح' }, { status: 400 })
-    }
+    if (data.length === 0) return NextResponse.json({ error: 'الملف فارغ أو غير صالح' }, { status: 400 })
 
     const headers = Object.keys(data[0])
+    const col = (candidates: string[]) => headers.find(h => candidates.includes(h)) || null
 
-    // Detect Zoho Bill.csv columns
-    const billNumCol      = headers.find(h => ['Bill Number', 'رقم الفاتورة'].includes(h)) || null
-    const billIdCol       = headers.find(h => ['Bill ID', 'معرف الفاتورة'].includes(h)) || null
-    const vendorCol       = headers.find(h => ['Vendor Name', 'اسم المورد'].includes(h)) || null
-    const dateCol         = headers.find(h => ['Bill Date', 'Date', 'تاريخ الفاتورة'].includes(h)) || null
-    const dueDateCol      = headers.find(h => ['Due Date', 'تاريخ الاستحقاق'].includes(h)) || null
-    const totalCol        = headers.find(h => ['Total', 'المبلغ الإجمالي', 'Grand Total'].includes(h)) || null
-    const statusCol       = headers.find(h => ['Bill Status', 'Status', 'الحالة'].includes(h)) || null
-    const notesCol        = headers.find(h => ['Vendor Notes', 'Notes', 'ملاحظات'].includes(h)) || null
-    const customerNameCol = headers.find(h => ['Customer Name', 'اسم العميل'].includes(h)) || null
-    const projectNameCol  = headers.find(h => ['Project Name', 'اسم المشروع'].includes(h)) || null
+    const billNumCol      = col(['Bill Number', 'رقم الفاتورة'])
+    const billIdCol       = col(['Bill ID', 'معرف الفاتورة'])
+    const vendorCol       = col(['Vendor Name', 'اسم المورد'])
+    const dateCol         = col(['Bill Date', 'Date', 'تاريخ الفاتورة'])
+    const dueDateCol      = col(['Due Date', 'تاريخ الاستحقاق'])
+    const totalCol        = col(['Total', 'المبلغ الإجمالي', 'Grand Total'])
+    const statusCol       = col(['Bill Status', 'Status', 'الحالة'])
+    const notesCol        = col(['Vendor Notes', 'Notes', 'ملاحظات'])
+    const customerNameCol = col(['Customer Name', 'اسم العميل'])
+    const projectNameCol  = col(['Project Name', 'اسم المشروع'])
 
     if (!billNumCol) {
       return NextResponse.json({
-        error: `لم يتم التعرف على عمود رقم الفاتورة (Bill Number). الأعمدة المتوفرة: ${headers.slice(0, 12).join(', ')}`,
+        error: `لم يتم التعرف على عمود رقم الفاتورة. الأعمدة: ${headers.slice(0, 12).join(', ')}`,
       }, { status: 400 })
     }
 
-    // Deduplicate: Zoho exports one row per line item — keep first occurrence per Bill Number
+    // ── Deduplicate (Zoho exports one row per line item) ──────────────
     const uniqueBills = new Map<string, Record<string, string>>()
     for (const row of data) {
       const bn = row[billNumCol]?.trim()
-      if (bn && !uniqueBills.has(bn)) {
-        uniqueBills.set(bn, row)
-      }
+      if (bn && !uniqueBills.has(bn)) uniqueBills.set(bn, row)
     }
 
-    let added = 0
-    let updated = 0
-    let linked = 0
-    let unlinked = 0
+    // ── Load all reference data in parallel (one shot each) ───────────
+    const [allProjects, allSuppliers, existingBills] = await Promise.all([
+      prisma.project.findMany({ select: { id: true, code: true, clientName: true, name: true } }),
+      prisma.supplier.findMany({ select: { id: true, name: true } }),
+      prisma.bill.findMany({
+        where: {
+          OR: [
+            { billNumber: { in: Array.from(uniqueBills.keys()) } },
+            ...(billIdCol
+              ? [{ zohoId: { in: Array.from(uniqueBills.values()).map(r => r[billIdCol!]?.trim()).filter(Boolean) } }]
+              : []),
+          ],
+        },
+        select: { id: true, billNumber: true, zohoId: true, projectId: true, isLinked: true, projectCode: true },
+      }),
+    ])
 
-    // Cache projects for matching
-    const allProjects = await prisma.project.findMany({
-      select: { id: true, code: true, clientName: true, name: true },
-    })
+    const supplierMap = new Map(allSuppliers.map(s => [s.name.toLowerCase(), s]))
+    const billByNum   = new Map(existingBills.map(b => [b.billNumber, b]))
+    const billByZoho  = new Map(existingBills.filter(b => b.zohoId).map(b => [b.zohoId!, b]))
 
-    for (const [billNumber, row] of Array.from(uniqueBills)) {
-      const zohoId      = billIdCol      ? row[billIdCol]?.trim()      || null : null
-      const vendorName  = vendorCol      ? row[vendorCol]?.trim()      || null : null
+    // ── Collect new vendors to create ─────────────────────────────────
+    const newVendorNames = new Set<string>()
+    for (const row of Array.from(uniqueBills.values())) {
+      const name = vendorCol ? row[vendorCol]?.trim() : null
+      if (name && !supplierMap.has(name.toLowerCase())) newVendorNames.add(name)
+    }
+    if (newVendorNames.size > 0) {
+      await prisma.supplier.createMany({
+        data: Array.from(newVendorNames).map(name => ({ name, serviceType: 'OTHER', recommendation: 'UNDER_REVIEW' })),
+        skipDuplicates: true,
+      })
+      // Reload suppliers
+      const fresh = await prisma.supplier.findMany({ where: { name: { in: Array.from(newVendorNames) } }, select: { id: true, name: true } })
+      for (const s of fresh) supplierMap.set(s.name.toLowerCase(), s)
+    }
+
+    // ── Build create / update buckets ─────────────────────────────────
+    const toCreate: any[] = []
+    const toUpdate: Array<{ id: string; data: any }> = []
+    let linked = 0, unlinked = 0
+
+    for (const [billNumber, row] of Array.from(uniqueBills.entries())) {
+      const zohoId      = billIdCol ? row[billIdCol]?.trim() || null : null
+      const vendorName  = vendorCol ? row[vendorCol]?.trim() || null : null
       const billDate    = parseDate(dateCol    ? row[dateCol]    : undefined) || new Date()
       const dueDate     = parseDate(dueDateCol ? row[dueDateCol] : undefined)
       const amount      = parseAmount(totalCol ? row[totalCol]   : undefined)
       const status      = mapBillStatus(statusCol ? row[statusCol] : undefined)
-      const notes       = notesCol        ? row[notesCol]?.trim()        || '' : ''
+      const notes       = notesCol        ? row[notesCol]?.trim()         || '' : ''
       const customerName = customerNameCol ? row[customerNameCol]?.trim() || null : null
-      const zohoProjectName = projectNameCol ? row[projectNameCol]?.trim() || null : null
+      const zohoProject  = projectNameCol  ? row[projectNameCol]?.trim()  || null : null
 
-      // ─── Find supplier ───────────────────────────────────────────
-      let supplierId: string | null = null
-      if (vendorName) {
-        let supplier = await prisma.supplier.findFirst({ where: { name: vendorName } })
-        if (!supplier) {
-          // Auto-create unknown vendor
-          supplier = await prisma.supplier.create({
-            data: { name: vendorName, serviceType: 'OTHER', recommendation: 'UNDER_REVIEW' },
-          })
-        }
-        supplierId = supplier.id
-      }
+      const supplierId = vendorName ? (supplierMap.get(vendorName.toLowerCase())?.id ?? null) : null
 
-      // ─── Find project ────────────────────────────────────────────
-      // Priority 1: PRJ-XXX code anywhere in notes
+      // Project matching
       let projectId: string | null = null
       let projectCode: string | null = null
-
       const codeMatch = notes.match(/\bPRJ-\d+\b/i)
       if (codeMatch) {
-        const code = codeMatch[0].toUpperCase()
-        const proj = allProjects.find(p => p.code === code)
-        if (proj) { projectId = proj.id; projectCode = code }
+        const p = allProjects.find(p => p.code === codeMatch[0].toUpperCase())
+        if (p) { projectId = p.id; projectCode = p.code }
       }
-
-      // Priority 2: Match Zoho Project Name to our project name
-      if (!projectId && zohoProjectName) {
-        const proj = allProjects.find(p =>
-          p.name.toLowerCase().trim() === zohoProjectName.toLowerCase().trim()
-        )
-        if (proj) { projectId = proj.id; projectCode = proj.code }
+      if (!projectId && zohoProject) {
+        const p = allProjects.find(p => p.name.toLowerCase().trim() === zohoProject.toLowerCase().trim())
+        if (p) { projectId = p.id; projectCode = p.code }
       }
-
-      // Priority 3: Match Customer Name to project clientName (main Zoho strategy)
       if (!projectId && customerName) {
-        const proj = allProjects.find(p =>
-          p.clientName.toLowerCase().trim() === customerName.toLowerCase().trim()
-        )
-        if (proj) { projectId = proj.id; projectCode = proj.code }
+        const p = allProjects.find(p => p.clientName.toLowerCase().trim() === customerName.toLowerCase().trim())
+        if (p) { projectId = p.id; projectCode = p.code }
       }
-
       const isLinked = !!projectId
 
-      // ─── Upsert bill ─────────────────────────────────────────────
-      // Use Prisma relation connect syntax (supplierId/projectId not valid directly in create)
-      const relationData = {
-        supplier:  supplierId ? { connect: { id: supplierId } } : undefined,
-        project:   projectId  ? { connect: { id: projectId  } } : undefined,
-      }
-
-      const scalarData = {
-        amount,
-        billDate,
-        dueDate,
-        status,
-        projectCode,
-        zohoCustomerName: customerName,
-        isLinked,
-        updatedAt: new Date(),
-      }
-
-      // Try find by zohoId first, then bill number
-      const existingByZohoId = zohoId
-        ? await prisma.bill.findUnique({ where: { zohoId } })
-        : null
-      const existingByNum = !existingByZohoId
-        ? await prisma.bill.findFirst({ where: { billNumber } })
-        : null
-      const existing = existingByZohoId || existingByNum
+      const existing = (zohoId ? billByZoho.get(zohoId) : null) ?? billByNum.get(billNumber)
 
       if (existing) {
-        // Determine effective project (keep existing link if new data has no link)
-        const effectiveProjectId = projectId || existing.projectId
-        const effectiveLinked    = isLinked || existing.isLinked
-        const effectiveCode      = projectCode || existing.projectCode
-
-        await prisma.bill.update({
-          where: { id: existing.id },
+        const effProjectId = projectId || existing.projectId
+        const effLinked    = isLinked  || existing.isLinked
+        const effCode      = projectCode || existing.projectCode
+        toUpdate.push({
+          id: existing.id,
           data: {
-            ...scalarData,
-            zohoId: zohoId || existing.zohoId,
-            isLinked: effectiveLinked,
-            projectCode: effectiveCode,
-            supplier: supplierId         ? { connect: { id: supplierId } }         : undefined,
-            project:  effectiveProjectId ? { connect: { id: effectiveProjectId } } : undefined,
+            amount, billDate, dueDate, status,
+            projectCode: effCode,
+            zohoCustomerName: customerName,
+            isLinked: effLinked,
+            updatedAt: new Date(),
+            zohoId: zohoId || undefined,
+            supplierId: supplierId || undefined,
+            projectId: effProjectId || undefined,
           },
         })
-        updated++
-        if (effectiveLinked) linked++
-        else unlinked++
+        if (effLinked) linked++; else unlinked++
       } else {
-        await prisma.bill.create({
-          data: { zohoId, billNumber, ...scalarData, ...relationData },
+        toCreate.push({
+          zohoId, billNumber, amount, billDate, dueDate, status,
+          projectCode, zohoCustomerName: customerName, isLinked,
+          supplierId: supplierId || null,
+          projectId:  projectId  || null,
         })
-        added++
-        if (isLinked) linked++
-        else unlinked++
+        if (isLinked) linked++; else unlinked++
       }
     }
 
-    await prisma.zohoSyncLog.create({
-      data: {
-        syncType: 'BILLS_CSV',
-        status: 'SUCCESS',
-        message: `فواتير: ${added} جديدة، ${updated} محدّثة، ${linked} مرتبطة بمشروع، ${unlinked} غير مرتبطة`,
-        itemsSynced: added + updated,
-      },
-    })
+    // ── Execute in parallel chunks ────────────────────────────────────
+    const CHUNK = 50
+    const chunks = <T>(arr: T[]) => Array.from({ length: Math.ceil(arr.length / CHUNK) }, (_, i) => arr.slice(i * CHUNK, (i + 1) * CHUNK))
 
-    await prisma.setting.upsert({
-      where: { key: 'LAST_SYNC_AT' },
-      update: { value: new Date().toISOString() },
-      create: { key: 'LAST_SYNC_AT', value: new Date().toISOString() },
-    })
+    await Promise.all([
+      // createMany is a single query
+      toCreate.length > 0
+        ? prisma.bill.createMany({ data: toCreate, skipDuplicates: true })
+        : Promise.resolve(),
+      // updates in parallel chunks
+      ...chunks(toUpdate).map(chunk =>
+        prisma.$transaction(chunk.map(u => prisma.bill.update({ where: { id: u.id }, data: u.data })))
+      ),
+    ])
 
-    return NextResponse.json({ added, updated, linked, unlinked, total: uniqueBills.size })
+    await Promise.all([
+      prisma.zohoSyncLog.create({
+        data: {
+          syncType: 'BILLS_CSV',
+          status: 'SUCCESS',
+          message: `فواتير: ${toCreate.length} جديدة، ${toUpdate.length} محدّثة، ${linked} مرتبطة، ${unlinked} غير مرتبطة`,
+          itemsSynced: toCreate.length + toUpdate.length,
+        },
+      }),
+      prisma.setting.upsert({
+        where: { key: 'LAST_SYNC_AT' },
+        update: { value: new Date().toISOString() },
+        create: { key: 'LAST_SYNC_AT', value: new Date().toISOString() },
+      }),
+    ])
+
+    return NextResponse.json({
+      added: toCreate.length,
+      updated: toUpdate.length,
+      linked,
+      unlinked,
+      total: uniqueBills.size,
+    })
   } catch (err: any) {
+    console.error('[upload/bills]', err)
     return NextResponse.json({ error: err.message || 'خطأ في معالجة الملف' }, { status: 500 })
   }
 }
