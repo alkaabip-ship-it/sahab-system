@@ -4,23 +4,33 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { generateProjectCode } from '@/lib/utils'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions)
   if (!session) {
     return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
   }
 
   try {
-    const projects = await prisma.project.findMany({
-      include: {
-        bills: true,
-        _count: { select: { bills: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
+    const { searchParams } = new URL(req.url)
+    const page  = Math.max(1, parseInt(searchParams.get('page')  || '1'))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '20')))
+    const skip  = (page - 1) * limit
+
+    const [total, projects] = await Promise.all([
+      prisma.project.count(),
+      prisma.project.findMany({
+        include: {
+          bills: { select: { amount: true } },
+          _count: { select: { bills: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ])
 
     const VAT = 1.05
-    const result = projects.map((p) => {
+    const data = projects.map((p) => {
       const costs        = p.bills.reduce((s, b) => s + b.amount, 0)
       const revenueExVat = p.value / VAT
       const costsExVat   = costs / VAT
@@ -29,7 +39,7 @@ export async function GET() {
       return { ...p, costs, revenueExVat, costsExVat, profit, margin }
     })
 
-    return NextResponse.json(result)
+    return NextResponse.json({ data, total, page, limit, pages: Math.ceil(total / limit) })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'خطأ في جلب المشاريع' }, { status: 500 })

@@ -23,16 +23,22 @@ export async function GET(req: NextRequest) {
     if (supplierId) where.supplierId = supplierId
     if (projectId) where.projectId = projectId
 
-    const bills = await prisma.bill.findMany({
-      where,
-      include: {
-        supplier: true,
-        project: true,
-      },
-      orderBy: { billDate: 'desc' },
-    })
+    const page  = Math.max(1, parseInt(searchParams.get('page')  || '1'))
+    const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '25')))
+    const skip  = (page - 1) * limit
 
-    return NextResponse.json(bills)
+    const [total, bills] = await Promise.all([
+      prisma.bill.count({ where }),
+      prisma.bill.findMany({
+        where,
+        include: { supplier: true, project: true },
+        orderBy: { billDate: 'desc' },
+        skip,
+        take: limit,
+      }),
+    ])
+
+    return NextResponse.json({ data: bills, total, page, limit, pages: Math.ceil(total / limit) })
   } catch (error) {
     console.error(error)
     return NextResponse.json(

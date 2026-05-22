@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
 import { HiCalendarDays, HiCheckCircle, HiExclamationTriangle, HiClipboardDocumentList } from 'react-icons/hi2'
+import Pagination from '@/components/Pagination'
 
 function formatNum(n: number) {
   return new Intl.NumberFormat('ar-AE').format(Math.round(n))
@@ -28,6 +29,10 @@ export default function ProjectsPage() {
   const [search, setSearch]     = useState('')
   const [overhead, setOverhead] = useState<number | null>(null)
   const [activePreset, setActivePreset] = useState<number>(0)
+  const [page,  setPage]  = useState(1)
+  const [pages, setPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const LIMIT = 20
 
   // default: all time
   const today = toDateStr(new Date())
@@ -62,17 +67,33 @@ export default function ProjectsPage() {
     { value: 'CLOSED',      label: t.status.CLOSED },
   ]
 
-  useEffect(() => {
-    fetch('/api/projects')
+  function fetchProjects(p = page) {
+    setLoading(true)
+    fetch(`/api/projects?page=${p}&limit=${LIMIT}`)
       .then((r) => r.json())
-      .then((data) => { setProjects(Array.isArray(data) ? data : []); setLoading(false) })
+      .then((res) => {
+        setProjects(Array.isArray(res.data) ? res.data : [])
+        setTotal(res.total ?? 0)
+        setPages(res.pages ?? 1)
+        setPage(res.page ?? 1)
+        setLoading(false)
+      })
       .catch(() => setLoading(false))
+  }
 
+  useEffect(() => {
+    fetchProjects(1)
     fetch('/api/admin')
       .then((r) => r.json())
       .then((d) => setOverhead(d.totalMonthlyOverhead ?? 0))
       .catch(() => {})
   }, [])
+
+  function handlePage(p: number) {
+    setPage(p)
+    fetchProjects(p)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
 
   const filtered = projects.filter((p) => {
     const matchStatus = !statusFilter || p.status === statusFilter
@@ -277,13 +298,10 @@ export default function ProjectsPage() {
             </table>
           </div>
         )}
+        {!loading && (
+          <Pagination page={page} pages={pages} total={total} limit={LIMIT} onPage={handlePage} isRtl={isAr} />
+        )}
       </div>
-
-      {filtered.length > 0 && (
-        <p className="text-sm text-slate-400 text-center">
-          {filtered.length} {isAr ? 'مشروع' : 'projects'} · {periodLabel}
-        </p>
-      )}
     </div>
   )
 }

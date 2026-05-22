@@ -9,6 +9,7 @@ import {
   HiCamera, HiFilm, HiUserGroup, HiTruck, HiCube,
   HiBuildingOffice2, HiCurrencyDollar, HiClipboardDocumentList,
 } from 'react-icons/hi2'
+import Pagination from '@/components/Pagination'
 
 const SERVICE_TYPES = [
   { value: 'SCREENS',     label: 'شاشات وعروض',       icon: <HiComputerDesktop size={14} /> },
@@ -207,15 +208,21 @@ export default function SuppliersPage() {
   const [search, setSearch] = useState('')
   const [showAdd, setShowAdd] = useState(false)
   const [sortBy, setSortBy] = useState<'name' | 'amount' | 'deals'>('amount')
+  const [cardPage, setCardPage] = useState(1)
+  const CARDS_PER_PAGE = 12
 
   async function loadSuppliers() {
-    const res = await fetch('/api/suppliers')
+    setLoading(true)
+    const res = await fetch('/api/suppliers?limit=200')
     const data = await res.json()
-    setSuppliers(Array.isArray(data) ? data : [])
+    setSuppliers(Array.isArray(data.data) ? data.data : [])
     setLoading(false)
   }
 
   useEffect(() => { loadSuppliers() }, [])
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => { setCardPage(1) }, [search, serviceFilter, recFilter, sortBy])
 
   const filtered = suppliers
     .filter((s) => {
@@ -234,6 +241,9 @@ export default function SuppliersPage() {
       return a.name.localeCompare(b.name, 'ar')
     })
 
+  const filteredPages = Math.ceil(filtered.length / CARDS_PER_PAGE)
+  const paginated = filtered.slice((cardPage - 1) * CARDS_PER_PAGE, cardPage * CARDS_PER_PAGE)
+
   return (
     <div className="space-y-4">
       {showAdd && (
@@ -248,6 +258,9 @@ export default function SuppliersPage() {
         <div>
           <h2 className="text-xl font-bold text-slate-800">الموردون</h2>
           <p className="text-sm text-slate-400 mt-0.5">{suppliers.length} مورد مسجّل</p>
+          {filtered.length !== suppliers.length && (
+            <p className="text-xs text-sky-500">{filtered.length} نتيجة</p>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -328,8 +341,9 @@ export default function SuppliersPage() {
           </button>
         </div>
       ) : (
+        <div className="space-y-4">
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((s) => (
+          {paginated.map((s) => (
             <Link
               key={s.id}
               href={`/dashboard/suppliers/${s.id}`}
@@ -378,6 +392,15 @@ export default function SuppliersPage() {
             <span className="text-4xl">+</span>
             <span className="text-sm font-medium">إضافة مورد جديد</span>
           </button>
+        </div>
+        <Pagination
+          page={cardPage}
+          pages={filteredPages}
+          total={filtered.length}
+          limit={CARDS_PER_PAGE}
+          onPage={(p) => { setCardPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }) }}
+          isRtl={true}
+        />
         </div>
       )}
     </div>

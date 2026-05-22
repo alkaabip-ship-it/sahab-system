@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
 import { HiDocumentText } from 'react-icons/hi2'
+import Pagination from '@/components/Pagination'
 
 type BillTab = 'all' | 'unlinked' | 'unpaid'
 
@@ -69,6 +70,10 @@ export default function BillsPage() {
   const [loading, setLoading]   = useState(true)
   const [linkingId, setLinkingId] = useState<string | null>(null)
   const [selectedProject, setSelectedProject] = useState<Record<string, string>>({})
+  const [page,  setPage]  = useState(1)
+  const [pages, setPages] = useState(1)
+  const [total, setTotal] = useState(0)
+  const LIMIT = 25
 
   const TABS = [
     { id: 'all',      label: t.common.all },
@@ -76,20 +81,29 @@ export default function BillsPage() {
     { id: 'unpaid',   label: t.bills.unlinked === 'Unlinked' ? 'Unpaid' : 'غير المدفوعة' },
   ]
 
-  async function loadBills(currentTab: BillTab) {
+  async function loadBills(currentTab: BillTab, p = 1) {
     setLoading(true)
-    let url = '/api/bills'
-    if (currentTab === 'unlinked') url += '?unlinked=true'
-    if (currentTab === 'unpaid')   url += '?unpaid=true'
-    const data = await fetch(url).then(r => r.json())
-    setBills(Array.isArray(data) ? data : [])
+    const params = new URLSearchParams({ page: String(p), limit: String(LIMIT) })
+    if (currentTab === 'unlinked') params.set('unlinked', 'true')
+    if (currentTab === 'unpaid')   params.set('unpaid', 'true')
+    const res = await fetch(`/api/bills?${params}`).then(r => r.json())
+    setBills(Array.isArray(res.data) ? res.data : [])
+    setTotal(res.total ?? 0)
+    setPages(res.pages ?? 1)
+    setPage(res.page ?? 1)
     setLoading(false)
   }
 
+  function handlePage(p: number) {
+    setPage(p)
+    loadBills(tab, p)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   useEffect(() => {
-    fetch('/api/projects').then(r => r.json()).then(d => setProjects(Array.isArray(d) ? d : []))
+    fetch('/api/projects?limit=100').then(r => r.json()).then(d => setProjects(Array.isArray(d.data) ? d.data : []))
   }, [])
-  useEffect(() => { loadBills(tab) }, [tab])
+  useEffect(() => { loadBills(tab, 1) }, [tab])
 
   async function handleLink(billId: string) {
     const projectId = selectedProject[billId]
@@ -177,11 +191,14 @@ export default function BillsPage() {
             </table>
           </div>
         )}
+        {!loading && (
+          <Pagination page={page} pages={pages} total={total} limit={LIMIT} onPage={handlePage} isRtl={lang === 'ar'} />
+        )}
       </div>
 
-      {bills.length > 0 && (
+      {!loading && bills.length > 0 && (
         <p className="text-sm text-slate-400 text-center">
-          {bills.length} {t.bills.billsCount} · {t.bills.total}: {formatNum(totalAmount)} {t.common.aed}
+          {total} {t.bills.billsCount} · {t.bills.total}: {formatNum(totalAmount)} {t.common.aed}
         </p>
       )}
     </div>
