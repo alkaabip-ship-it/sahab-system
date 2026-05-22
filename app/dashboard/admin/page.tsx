@@ -7,6 +7,7 @@ import {
   HiClipboardDocumentList, HiSignal, HiBriefcase,
   HiChartBarSquare, HiUsers, HiCalendarDays,
   HiExclamationCircle, HiExclamationTriangle, HiCheckCircle,
+  HiDocumentChartBar, HiArrowTrendingUp, HiArrowTrendingDown,
 } from 'react-icons/hi2'
 
 const PERIOD_LABEL: Record<string, string> = {
@@ -42,6 +43,15 @@ function toInputDate(d: string | null | undefined): string {
   return new Date(d).toISOString().split('T')[0]
 }
 
+function toDateStr(d: Date) {
+  return d.toISOString().slice(0, 10)
+}
+
+function monthsBetween(from: string, to: string) {
+  const f = new Date(from), t = new Date(to)
+  return Math.max(0.5, (t.getFullYear() - f.getFullYear()) * 12 + (t.getMonth() - f.getMonth()) + 1)
+}
+
 function daysLabel(iso: string | null | undefined): { text: string; color: string } | null {
   if (!iso) return null
   const diff = Math.floor((new Date(iso).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000)
@@ -51,6 +61,14 @@ function daysLabel(iso: string | null | undefined): { text: string; color: strin
   if (diff <= 90) return { text: `تنتهي خلال ${diff} يوم`, color: 'text-amber-500' }
   return { text: `تنتهي في ${new Date(iso).toLocaleDateString('ar-AE')}`, color: 'text-slate-400' }
 }
+
+const PNL_PRESETS = [
+  { value: 1,  label: 'شهر'    },
+  { value: 3,  label: '3 أشهر' },
+  { value: 6,  label: '6 أشهر' },
+  { value: 12, label: 'سنة'    },
+  { value: 0,  label: 'الكل'   },
+]
 
 export default function AdminPage() {
   const { t } = useTranslation()
@@ -65,6 +83,38 @@ export default function AdminPage() {
   const [deletingId, setDeletingId]   = useState('')
   const [empExpiry, setEmpExpiry]     = useState<Record<string, string>>({})
   const [savingEmpId, setSavingEmpId] = useState('')
+
+  // P&L state
+  const today = toDateStr(new Date())
+  const defaultFrom = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return toDateStr(d) })()
+  const [pnlFrom,    setPnlFrom]    = useState(defaultFrom)
+  const [pnlTo,      setPnlTo]      = useState(today)
+  const [pnlPreset,  setPnlPreset]  = useState(1)
+  const [pnlData,    setPnlData]    = useState<any>(null)
+  const [pnlLoading, setPnlLoading] = useState(false)
+
+  function applyPnlPreset(months: number) {
+    setPnlPreset(months)
+    const to   = new Date()
+    const from = new Date()
+    if (months > 0) from.setMonth(from.getMonth() - months)
+    else from.setFullYear(from.getFullYear() - 10)
+    setPnlFrom(toDateStr(from))
+    setPnlTo(toDateStr(to))
+  }
+
+  async function fetchPnl(from: string, to: string) {
+    setPnlLoading(true)
+    try {
+      const res = await fetch(`/api/admin/pnl?from=${from}&to=${to}`)
+      const d   = await res.json()
+      setPnlData(d)
+    } finally {
+      setPnlLoading(false)
+    }
+  }
+
+  useEffect(() => { fetchPnl(pnlFrom, pnlTo) }, [pnlFrom, pnlTo])
 
   async function loadData() {
     try {
@@ -156,9 +206,163 @@ export default function AdminPage() {
   const { employees, expenses, monthlySalaries, monthlyExpenses, totalMonthlyOverhead, warnings } = data
   const PERIOD_LABEL_T: Record<string, string> = { MONTHLY: t.admin.periodMonthly, ANNUAL: t.admin.periodAnnual, BIANNUAL: t.admin.periodBiannual }
 
+  const pnlMonths  = pnlFrom && pnlTo ? monthsBetween(pnlFrom, pnlTo) : 1
+  const pnlOverhead   = data ? data.totalMonthlyOverhead * pnlMonths : 0
+  const pnlNetProfit  = pnlData ? pnlData.grossProfit - pnlOverhead : 0
+  const pnlCoverage   = pnlOverhead > 0 ? Math.round((pnlData?.grossProfit ?? 0) / pnlOverhead * 100) : null
+
+  const formatDateLabel = (s: string) =>
+    s ? new Intl.DateTimeFormat('ar-AE', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(s)) : ''
+  const pnlPeriodLabel = pnlFrom && pnlTo ? `${formatDateLabel(pnlFrom)} — ${formatDateLabel(pnlTo)}` : 'الكل'
+
   return (
     <div className="max-w-3xl space-y-6">
       <h2 className="text-xl font-bold text-slate-800">{t.admin.title}</h2>
+
+      {/* ── P&L Statement ── */}
+      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+        {/* Header + date filter */}
+        <div className="px-5 py-3.5 border-b border-slate-100 bg-slate-50 space-y-3">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <HiDocumentChartBar size={16} className="text-slate-500" />
+              <h3 className="font-bold text-slate-700 text-sm">قائمة الأرباح والخسائر</h3>
+            </div>
+            <span className="text-xs text-slate-400">{pnlPeriodLabel}</span>
+          </div>
+          {/* Presets */}
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex gap-1.5 flex-wrap">
+              {PNL_PRESETS.map((o) => (
+                <button key={o.value} onClick={() => applyPnlPreset(o.value)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                    pnlPreset === o.value
+                      ? 'bg-sky-500 text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                  }`}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1.5 ms-auto">
+              <input type="date" value={pnlFrom} max={pnlTo}
+                onChange={(e) => { setPnlFrom(e.target.value); setPnlPreset(-1) }}
+                className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white" />
+              <span className="text-slate-300">—</span>
+              <input type="date" value={pnlTo} min={pnlFrom} max={today}
+                onChange={(e) => { setPnlTo(e.target.value); setPnlPreset(-1) }}
+                className="px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white" />
+            </div>
+          </div>
+        </div>
+
+        {pnlLoading ? (
+          <div className="flex items-center justify-center py-10">
+            <div className="w-6 h-6 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : pnlData && (
+          <div className="divide-y divide-slate-50">
+            {/* Revenue */}
+            <div className="flex items-center justify-between px-5 py-3">
+              <div className="flex items-center gap-2">
+                <HiArrowTrendingUp size={15} className="text-sky-400" />
+                <span className="text-sm text-slate-600">الإيرادات (بدون ضريبة)</span>
+                <span className="text-xs text-slate-400 bg-slate-50 border border-slate-100 px-1.5 py-0.5 rounded-full">
+                  {pnlData.projectCount} مشروع
+                </span>
+              </div>
+              <span className="font-semibold text-slate-800 tabular-nums">
+                {formatNum(pnlData.revenue)} <span className="text-xs font-normal text-slate-400">د.إ</span>
+              </span>
+            </div>
+
+            {/* Costs */}
+            <div className="flex items-center justify-between px-5 py-3">
+              <div className="flex items-center gap-2">
+                <HiArrowTrendingDown size={15} className="text-red-400" />
+                <span className="text-sm text-slate-600">التكاليف المباشرة (بدون ضريبة)</span>
+              </div>
+              <span className="font-semibold text-red-500 tabular-nums">
+                ({formatNum(pnlData.costs)}) <span className="text-xs font-normal text-red-300">د.إ</span>
+              </span>
+            </div>
+
+            {/* Gross Profit */}
+            <div className="flex items-center justify-between px-5 py-3.5 bg-slate-50/80">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-slate-600">= إجمالي الربح الخام</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                  pnlData.margin >= 30 ? 'bg-green-100 text-green-700'
+                  : pnlData.margin >= 15 ? 'bg-yellow-100 text-yellow-700'
+                  : 'bg-red-100 text-red-700'
+                }`}>{pnlData.margin.toFixed(1)}%</span>
+              </div>
+              <span className={`font-bold text-base tabular-nums ${pnlData.grossProfit >= 0 ? 'text-green-600' : 'text-red-500'}`}>
+                {pnlData.grossProfit < 0
+                  ? `(${formatNum(Math.abs(pnlData.grossProfit))})`
+                  : formatNum(pnlData.grossProfit)}
+                {' '}<span className="text-xs font-normal">د.إ</span>
+              </span>
+            </div>
+
+            {/* Fixed Expenses */}
+            {data && data.totalMonthlyOverhead > 0 && (
+              <div className="flex items-center justify-between px-5 py-3">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <HiArrowTrendingDown size={15} className="text-orange-400" />
+                  <span className="text-sm text-slate-600">المصاريف الثابتة للفترة</span>
+                  <span className="text-xs text-slate-400 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded-md">
+                    {Math.round(pnlMonths)} شهر × {formatNum(data.totalMonthlyOverhead)} د.إ
+                  </span>
+                </div>
+                <span className="font-semibold text-orange-500 tabular-nums">
+                  ({formatNum(pnlOverhead)}) <span className="text-xs font-normal text-orange-300">د.إ</span>
+                </span>
+              </div>
+            )}
+
+            {/* Net Profit */}
+            {data && data.totalMonthlyOverhead > 0 && (
+              <div className={`flex items-center justify-between px-5 py-4 ${pnlNetProfit >= 0 ? 'bg-green-50' : 'bg-red-50'}`}>
+                <div className="flex items-center gap-2.5">
+                  {pnlNetProfit >= 0
+                    ? <HiCheckCircle size={22} className="text-green-500" />
+                    : <HiExclamationTriangle size={22} className="text-red-500" />}
+                  <div>
+                    <p className={`font-bold text-base ${pnlNetProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                      صافي الربح
+                    </p>
+                    {pnlCoverage !== null && (
+                      <p className={`text-xs ${pnlNetProfit >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+                        يغطي {pnlCoverage}% من المصاريف الثابتة
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="text-end">
+                  <p className={`font-bold text-2xl tabular-nums ${pnlNetProfit >= 0 ? 'text-green-700' : 'text-red-700'}`}>
+                    {pnlNetProfit < 0
+                      ? `(${formatNum(Math.abs(pnlNetProfit))})`
+                      : formatNum(pnlNetProfit)}
+                    {' '}<span className="text-sm font-normal">د.إ</span>
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* VAT footer */}
+            <div className="flex items-center justify-between px-5 py-2.5 bg-amber-50/60 border-t border-amber-100">
+              <span className="text-xs text-amber-600 font-medium">ضريبة القيمة المضافة الصافي المستحق</span>
+              <span className="text-xs font-semibold text-amber-700 tabular-nums">
+                {formatNum(pnlData.netVat)} <span className="font-normal">د.إ</span>
+                <span className="text-amber-400 font-normal ms-1.5">
+                  (محصّل {formatNum(pnlData.vatCollected)} − مدفوع {formatNum(pnlData.vatPaid)})
+                </span>
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Active warnings */}
       {warnings?.length > 0 && (
