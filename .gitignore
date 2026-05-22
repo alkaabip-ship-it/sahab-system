@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+out/
+
+# Database (لا ترفع قاعدة البيانات على GitHub)
+prisma/dev.db
+prisma/dev.db-journal
+*.db
+*.db-journal
+
+# Environment (سري — لا ترفعه أبداً)
+.env.local
+.env*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build
+tsconfig.tsbuildinfo

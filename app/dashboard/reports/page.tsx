@@ -1,0 +1,183 @@
+'use client'
+
+import { useState } from 'react'
+import { getStatusColor } from '@/lib/utils'
+import { useTranslation } from '@/lib/i18n/LanguageContext'
+
+function formatNum(n: number) { return new Intl.NumberFormat('ar-AE').format(Math.round(n)) }
+function formatDate(d: string | null, lang: string) {
+  if (!d) return '-'
+  return new Intl.DateTimeFormat(lang === 'ar' ? 'ar-AE' : 'en-AE', { year: 'numeric', month: 'short', day: 'numeric' }).format(new Date(d))
+}
+
+function Th({ children }: { children: React.ReactNode }) {
+  return <th className="text-right px-4 py-3 text-slate-600 font-semibold">{children}</th>
+}
+
+export default function ReportsPage() {
+  const { t, lang } = useTranslation()
+  const [selectedReport, setSelectedReport] = useState('project-profitability')
+  const [data, setData]     = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  const REPORT_TYPES = [
+    { id: 'project-profitability', label: t.reports.projectProfitability,  desc: t.reports.projectProfitabilityDesc,  icon: '📈' },
+    { id: 'unlinked-bills',        label: t.reports.unlinkedBills,          desc: t.reports.unlinkedBillsDesc,          icon: '🔗' },
+    { id: 'unpaid-bills',          label: t.reports.unpaidBills,            desc: t.reports.unpaidBillsDesc,            icon: '💸' },
+    { id: 'top-suppliers',         label: t.reports.topSuppliers,           desc: t.reports.topSuppliersDesc,           icon: '⭐' },
+    { id: 'low-profit-projects',   label: t.reports.lowProfitProjects,      desc: t.reports.lowProfitProjectsDesc,      icon: '📉' },
+    { id: 'supplier-totals',       label: t.reports.supplierTotals,         desc: t.reports.supplierTotalsDesc,         icon: '💼' },
+  ]
+
+  async function loadReport(type: string) {
+    setSelectedReport(type)
+    setLoading(true)
+    setLoaded(false)
+    const res = await fetch(`/api/reports?type=${type}`)
+    setData(await res.json())
+    setLoading(false)
+    setLoaded(true)
+  }
+
+  function renderTable() {
+    if (!data) return null
+    const aed = <span className="text-xs text-slate-400 font-normal">{t.common.aed}</span>
+
+    if (selectedReport === 'project-profitability' || (selectedReport === 'low-profit-projects')) {
+      const rows = selectedReport === 'low-profit-projects' ? (data.projects || []) : data
+      if (!rows.length) return <p className="text-center py-8 text-green-600">✓ {t.common.noData}</p>
+      return (
+        <table className="w-full text-sm">
+          <thead><tr className="bg-slate-50 border-b border-slate-100">
+            {[t.projects.code, t.reports.project, t.reports.client, t.reports.revenue, t.reports.cost, t.reports.profit, t.reports.margin, t.reports.status].map(h => <Th key={h}>{h}</Th>)}
+          </tr></thead>
+          <tbody>
+            {rows.map((p: any) => (
+              <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.code}</td>
+                <td className="px-4 py-3 font-medium text-slate-700">{p.name}</td>
+                <td className="px-4 py-3 text-slate-500">{p.clientName}</td>
+                <td className="px-4 py-3">{formatNum(p.revenueExVat ?? p.value / 1.05)} {aed}</td>
+                <td className="px-4 py-3">{formatNum(p.costsExVat ?? p.costs / 1.05)} {aed}</td>
+                <td className="px-4 py-3"><span className={p.profit >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{formatNum(p.profit)} {aed}</span></td>
+                <td className="px-4 py-3"><span className={`font-semibold ${p.margin >= 30 ? 'text-green-600' : p.margin >= 20 ? 'text-yellow-600' : 'text-red-500'}`}>{p.margin.toFixed(1)}%</span></td>
+                <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(p.status)}`}>{t.status[p.status as keyof typeof t.status] ?? p.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+
+    if (selectedReport === 'unlinked-bills' || selectedReport === 'unpaid-bills') {
+      const rows = Array.isArray(data) ? data : []
+      const showProject = selectedReport === 'unpaid-bills'
+      if (!rows.length) return <p className="text-center py-8 text-green-600">✓ {t.common.noData}</p>
+      return (
+        <table className="w-full text-sm">
+          <thead><tr className="bg-slate-50 border-b border-slate-100">
+            <Th>{t.bills.billNumber}</Th><Th>{t.reports.supplier}</Th>
+            {showProject && <Th>{t.reports.project}</Th>}
+            <Th>{t.bills.amount}</Th><Th>{t.bills.date}</Th><Th>{t.bills.dueDate}</Th><Th>{t.bills.status}</Th>
+          </tr></thead>
+          <tbody>
+            {rows.map((b: any) => (
+              <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <td className="px-4 py-3 font-mono text-xs text-slate-500">{b.billNumber}</td>
+                <td className="px-4 py-3 text-slate-700">{b.supplier?.name || '-'}</td>
+                {showProject && <td className="px-4 py-3 text-xs text-slate-500">{b.project?.code || <span className="text-orange-400">-</span>}</td>}
+                <td className="px-4 py-3 font-semibold">{formatNum(b.amount)} {aed}</td>
+                <td className="px-4 py-3 text-xs text-slate-500">{formatDate(b.billDate, lang)}</td>
+                <td className="px-4 py-3 text-xs">{b.dueDate ? <span className={new Date(b.dueDate) < new Date() && b.status !== 'PAID' ? 'text-red-500 font-medium' : 'text-slate-500'}>{formatDate(b.dueDate, lang)}</span> : '-'}</td>
+                <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(b.status)}`}>{t.status[b.status as keyof typeof t.status] ?? b.status}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+
+    if (selectedReport === 'top-suppliers') {
+      if (!data.length) return <p className="text-center py-8 text-slate-400">{t.suppliers.noSuppliers}</p>
+      return (
+        <table className="w-full text-sm">
+          <thead><tr className="bg-slate-50 border-b border-slate-100">
+            <Th>#</Th><Th>{t.reports.supplier}</Th><Th>{t.reports.service}</Th><Th>{t.reports.deals}</Th><Th>{t.reports.total}</Th><Th>{t.suppliers.recommendation}</Th>
+          </tr></thead>
+          <tbody>
+            {data.map((s: any, i: number) => (
+              <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
+                <td className="px-4 py-3 font-medium text-slate-700">{s.name}</td>
+                <td className="px-4 py-3 text-xs text-slate-500">{t.serviceType[s.serviceType as keyof typeof t.serviceType] ?? s.serviceType}</td>
+                <td className="px-4 py-3 text-center">{s.dealCount}</td>
+                <td className="px-4 py-3 font-semibold">{formatNum(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
+                <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(s.recommendation)}`}>{t.recommendation[s.recommendation as keyof typeof t.recommendation] ?? s.recommendation}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+
+    if (selectedReport === 'supplier-totals') {
+      if (!data.length) return <p className="text-center py-8 text-slate-400">{t.suppliers.noSuppliers}</p>
+      return (
+        <table className="w-full text-sm">
+          <thead><tr className="bg-slate-50 border-b border-slate-100">
+            <Th>{t.reports.supplier}</Th><Th>{t.reports.service}</Th><Th>{t.reports.deals}</Th><Th>{t.reports.total}</Th><Th>{t.reports.paid}</Th><Th>{t.reports.unpaid}</Th><Th>{t.suppliers.recommendation}</Th>
+          </tr></thead>
+          <tbody>
+            {data.map((s: any) => (
+              <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
+                <td className="px-4 py-3 font-medium text-slate-700">{s.name}</td>
+                <td className="px-4 py-3 text-xs text-slate-500">{t.serviceType[s.serviceType as keyof typeof t.serviceType] ?? s.serviceType}</td>
+                <td className="px-4 py-3 text-center">{s.dealCount}</td>
+                <td className="px-4 py-3 font-semibold">{formatNum(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
+                <td className="px-4 py-3 text-green-600">{formatNum(s.paidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
+                <td className="px-4 py-3 text-red-500">{formatNum(s.unpaidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
+                <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(s.recommendation)}`}>{t.recommendation[s.recommendation as keyof typeof t.recommendation] ?? s.recommendation}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )
+    }
+    return null
+  }
+
+  return (
+    <div className="space-y-4">
+      <h2 className="text-xl font-bold text-slate-800">{t.reports.title}</h2>
+
+      {/* Report type grid */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        {REPORT_TYPES.map((r) => (
+          <button key={r.id} onClick={() => loadReport(r.id)}
+            className={`p-4 rounded-xl border text-right transition-all ${selectedReport === r.id ? 'border-sky-400 bg-sky-50' : 'border-slate-100 bg-white hover:border-sky-200'}`}>
+            <p className="text-2xl mb-1">{r.icon}</p>
+            <p className="text-sm font-semibold text-slate-800">{r.label}</p>
+            <p className="text-xs text-slate-400 mt-0.5">{r.desc}</p>
+          </button>
+        ))}
+      </div>
+
+      {/* Results */}
+      <div className="bg-white rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+        {loading ? (
+          <div className="flex items-center justify-center py-16">
+            <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+          </div>
+        ) : !loaded ? (
+          <div className="text-center py-16 text-slate-400">
+            <p className="text-4xl mb-3">📊</p>
+            <p>{t.reports.noData}</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">{renderTable()}</div>
+        )}
+      </div>
+    </div>
+  )
+}

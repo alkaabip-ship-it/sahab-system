@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+Arabic:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 15, 23, 42;
+  --background-rgb: 248, 250, 252;
+}
+
+* { box-sizing: border-box; }
+
+html {
+  direction: rtl;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+  font-family: 'Noto Sans Arabic', sans-serif;
+}
+
+/* ── Page & card enter animations ─────────────────────── */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideRight {
+  from { opacity: 0; transform: translateX(-12px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.94); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes barFill {
+  from { width: 0 !important; }
+}
+
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+
+@keyframes pulse-ring {
+  0%   { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(14, 165, 233, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(14, 165, 233, 0); }
+}
+
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Utility classes ──────────────────────────────────── */
+.animate-fade-up   { animation: fadeUp   0.45s ease both; }
+.animate-fade-in   { animation: fadeIn   0.35s ease both; }
+.animate-scale-in  { animation: scaleIn  0.35s ease both; }
+.animate-slide-right { animation: slideRight 0.35s ease both; }
+.animate-bar-fill  { animation: barFill  1s ease both; }
+.animate-count     { animation: countUp  0.4s ease both; }
+
+/* stagger helpers */
+.delay-100 { animation-delay: 0.1s; }
+.delay-150 { animation-delay: 0.15s; }
+.delay-200 { animation-delay: 0.2s; }
+.delay-250 { animation-delay: 0.25s; }
+.delay-300 { animation-delay: 0.3s; }
+.delay-350 { animation-delay: 0.35s; }
+.delay-400 { animation-delay: 0.4s; }
+.delay-500 { animation-delay: 0.5s; }
+
+/* ── Card hover lift ──────────────────────────────────── */
+.card-hover {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 24px -4px rgba(15, 23, 42, 0.1);
+}
+
+/* ── Skeleton loading ─────────────────────────────────── */
+.skeleton {
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.4s ease infinite;
+  border-radius: 8px;
+}
+
+/* ── Active nav pulse ─────────────────────────────────── */
+.nav-active {
+  animation: pulse-ring 2.5s ease-out infinite;
+}
+
+/* ── Progress bar animated fill ──────────────────────── */
+.progress-bar {
+  animation: barFill 1.2s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+
+/* ── KPI number pop ──────────────────────────────────── */
+.kpi-value {
+  animation: countUp 0.5s ease both;
+}
+
+/* ── RTL & sidebar fixes ──────────────────────────────── */
+.sidebar-nav a { text-align: right; }
+
+/* ── Scrollbar ────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Table / input RTL ────────────────────────────────── */
+table { direction: rtl; }
+input, select, textarea { text-align: right; direction: rtl; }
+input[type="number"]    { text-align: right; }
+
+/* ── General transitions ─────────────────────────────── */
+.transition-all { transition: all 0.2s ease; }
+
+/* ── Text utility ─────────────────────────────────────── */
+@layer utilities {
+  .text-balance { text-wrap: balance; }
+}
