@@ -100,7 +100,7 @@ export async function POST(req: NextRequest) {
       select: { id: true, code: true, clientName: true, name: true },
     })
 
-    for (const [billNumber, row] of uniqueBills) {
+    for (const [billNumber, row] of Array.from(uniqueBills)) {
       const zohoId      = billIdCol      ? row[billIdCol]?.trim()      || null : null
       const vendorName  = vendorCol      ? row[vendorCol]?.trim()      || null : null
       const billDate    = parseDate(dateCol    ? row[dateCol]    : undefined) || new Date()

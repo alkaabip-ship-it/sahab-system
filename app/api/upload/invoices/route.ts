@@ -98,7 +98,7 @@ export async function POST(req: NextRequest) {
     let unlinked = 0
     let voided = 0
 
-    for (const [invoiceNumber, row] of uniqueInvoices) {
+    for (const [invoiceNumber, row] of Array.from(uniqueInvoices)) {
       const status = mapInvoiceStatus(statusCol ? row[statusCol] : undefined)
 
       // Skip Void invoices — don't count in financials

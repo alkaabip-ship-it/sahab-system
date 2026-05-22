@@ -2,7 +2,7 @@ export type Lang = 'ar' | 'en'
 
 const ar = {
   lang: 'ar' as Lang,
-  dir: 'rtl' as const,
+  dir: 'rtl' as 'rtl' | 'ltr',
 
   nav: {
     dashboard: 'لوحة التحكم',
@@ -336,7 +336,7 @@ const ar = {
 
 const en: typeof ar = {
   lang: 'en',
-  dir: 'ltr',
+  dir: 'ltr' as 'rtl' | 'ltr',
 
   nav: {
     dashboard: 'Dashboard',
