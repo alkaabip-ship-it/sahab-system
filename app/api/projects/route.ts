@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
           bills: { select: { amount: true } },
           _count: { select: { bills: true } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ executionDate: 'desc' }, { createdAt: 'desc' }],
         skip,
         take: limit,
       }),

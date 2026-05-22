@@ -77,6 +77,7 @@ function InvoicesTab() {
         clientName: inv.customerName,
         value: inv.amount,
         status: inv.status === 'PAID' ? 'COMPLETED' : 'CONFIRMED',
+        executionDate: inv.invoiceDate,
       }),
     })
     if (!projRes.ok) { setCreating(c => ({ ...c, [inv.id]: false })); return }
@@ -236,8 +237,7 @@ export default function ProjectsPage() {
 
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
-  const [statusFilter, setStatusFilter] = useState('')
-  const [search, setSearch]     = useState('')
+  const [search, setSearch] = useState('')
   const [activePreset, setActivePreset] = useState<number>(0)
   const [page,  setPage]  = useState(1)
   const [pages, setPages] = useState(1)
@@ -265,15 +265,6 @@ export default function ProjectsPage() {
     setDateFrom(toDateStr(from)); setDateTo(toDateStr(to))
   }
 
-  const STATUS_OPTIONS = [
-    { value: '',            label: t.status.allStatuses },
-    { value: 'QUOTE',       label: t.status.QUOTE },
-    { value: 'CONFIRMED',   label: t.status.CONFIRMED },
-    { value: 'IN_PROGRESS', label: t.status.IN_PROGRESS },
-    { value: 'COMPLETED',   label: t.status.COMPLETED },
-    { value: 'CLOSED',      label: t.status.CLOSED },
-  ]
-
   function fetchProjects(p = page) {
     setLoading(true)
     fetch(`/api/projects?page=${p}&limit=${LIMIT}`)
@@ -293,11 +284,10 @@ export default function ProjectsPage() {
   }
 
   const filtered = projects.filter(p => {
-    const matchStatus = !statusFilter || p.status === statusFilter
     const matchSearch = !search || p.name.includes(search) || p.clientName.includes(search) || p.code.includes(search)
     const pDate = new Date(p.executionDate || p.createdAt)
     const matchDate = (!dateFrom || pDate >= new Date(dateFrom)) && (!dateTo || pDate <= new Date(dateTo + 'T23:59:59'))
-    return matchStatus && matchSearch && matchDate
+    return matchSearch && matchDate
   })
 
   const totalRevenue = filtered.reduce((s, p) => s + (p.revenueExVat ?? p.value / 1.05), 0)
@@ -425,10 +415,6 @@ export default function ProjectsPage() {
             <input type="text" placeholder={t.projects.searchPlaceholder} value={search}
               onChange={e => setSearch(e.target.value)}
               className="flex-1 min-w-48 px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500" />
-            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
-              className="px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white">
-              {STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
           </div>
 
           {/* Table */}
