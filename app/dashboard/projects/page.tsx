@@ -285,7 +285,7 @@ export default function ProjectsPage() {
 
   const filtered = projects.filter(p => {
     const matchSearch = !search || p.name.includes(search) || p.clientName.includes(search) || p.code.includes(search)
-    const pDate = new Date(p.executionDate || p.createdAt)
+    const pDate = new Date(p.displayDate ?? p.executionDate ?? p.createdAt)
     const matchDate = (!dateFrom || pDate >= new Date(dateFrom)) && (!dateTo || pDate <= new Date(dateTo + 'T23:59:59'))
     return matchSearch && matchDate
   })
@@ -433,7 +433,7 @@ export default function ProjectsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {[t.projects.code, t.projects.name, t.projects.client, t.projects.value, t.projects.cost, t.projects.profit, t.projects.margin, t.projects.status, t.common.actions].map(h => (
+                      {[t.projects.code, 'التاريخ', t.projects.name, t.projects.client, t.projects.value, t.projects.cost, t.projects.profit, t.projects.margin, t.projects.status, t.common.actions].map(h => (
                         <th key={h} className="text-right px-4 py-3 font-semibold text-slate-600">{h}</th>
                       ))}
                     </tr>
@@ -442,6 +442,7 @@ export default function ProjectsPage() {
                     {filtered.map(p => (
                       <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
                         <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.code}</td>
+                        <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(p.displayDate)}</td>
                         <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
                         <td className="px-4 py-3 text-slate-600">{p.clientName}</td>
                         <td className="px-4 py-3 text-slate-700 font-medium">{formatNum(p.revenueExVat ?? p.value / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
