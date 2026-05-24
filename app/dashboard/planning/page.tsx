@@ -153,9 +153,7 @@ export default function PlanningPage() {
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-right text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                 >
                   {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>
-                      {s.name}{s.dealCount ? ` (${s.dealCount} صفقة)` : ''}
-                    </option>
+                    <option key={s.id} value={s.id}>{s.name}</option>
                   ))}
                 </select>
               </div>
