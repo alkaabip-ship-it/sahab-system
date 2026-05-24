@@ -17,6 +17,8 @@ const ar = {
     signOut: 'تسجيل الخروج',
     uploadCsv: 'رفع ملف CSV',
     planning: 'التخطيط',
+    uploadBill: 'رفع فاتورة AI',
+    communications: 'التواصل',
   },
 
   common: {
@@ -390,6 +392,8 @@ const en: typeof ar = {
     signOut: 'Sign Out',
     uploadCsv: 'Upload CSV',
     planning: 'Planning',
+    uploadBill: 'Upload Bill AI',
+    communications: 'Communications',
   },
 
   common: {
