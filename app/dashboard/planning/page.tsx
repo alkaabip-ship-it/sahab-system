@@ -181,55 +181,86 @@ export default function PlanningPage() {
           </div>
         )}
 
-        {/* ── Saved plans drawer ── */}
+        {/* ── Saved plans – dark cards grid ── */}
         {showPlans && (
-          <div className="no-print bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-            <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100 bg-slate-50/80">
+          <div className="no-print">
+            {/* Header row */}
+            <div className="flex items-center justify-between mb-3">
               <span className="font-semibold text-slate-700 text-sm">{p.savedPlans}</span>
-              <button onClick={() => setShowPlans(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition">
+              <button
+                onClick={() => setShowPlans(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition"
+              >
                 <HiXMark size={18} />
               </button>
             </div>
+
             {plans.length === 0 ? (
-              <p className="text-center text-slate-400 text-sm py-12">{p.noSavedPlans}</p>
+              <div className="bg-slate-800 rounded-2xl py-14 text-center">
+                <p className="text-slate-400 text-sm">{p.noSavedPlans}</p>
+              </div>
             ) : (
-              <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 {plans.map(pl => {
-                  const plItems = JSON.parse(pl.items) as Item[]
-                  const plExp   = plItems.reduce((s, i) => s + i.quote, 0)
-                  const plProf  = pl.saleValue - plExp
-                  const isOpen  = currentPlanId === pl.id
+                  const plItems  = JSON.parse(pl.items) as Item[]
+                  const plExp    = plItems.reduce((s, i) => s + i.quote, 0)
+                  const plProf   = pl.saleValue - plExp
+                  const plMargin = pl.saleValue > 0 ? (plProf / pl.saleValue) * 100 : 0
+                  const isOpen   = currentPlanId === pl.id
+
                   return (
-                    <div key={pl.id} className={`flex items-center gap-3 px-5 py-3 transition hover:bg-slate-50 ${isOpen ? 'bg-sky-50/40' : ''}`}>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-semibold text-slate-800 text-sm truncate">{pl.name}</p>
-                          {isOpen && (
-                            <span className="text-xs bg-sky-100 text-sky-600 px-1.5 py-0.5 rounded-full font-medium flex-shrink-0">
-                              {p.currentlyOpen}
-                            </span>
-                          )}
+                    <div
+                      key={pl.id}
+                      className={`relative rounded-2xl p-5 flex flex-col gap-4 transition-all cursor-pointer group
+                        ${isOpen
+                          ? 'bg-sky-600 ring-2 ring-sky-400 ring-offset-2'
+                          : 'bg-slate-800 hover:bg-slate-750 hover:ring-2 hover:ring-slate-600 hover:ring-offset-1'
+                        }`}
+                      onClick={() => loadPlan(pl)}
+                    >
+                      {/* Open badge */}
+                      {isOpen && (
+                        <span className="absolute top-3 end-3 text-xs bg-white/20 text-white px-2 py-0.5 rounded-full font-medium">
+                          {p.currentlyOpen}
+                        </span>
+                      )}
+
+                      {/* Plan name */}
+                      <div>
+                        <p className="font-bold text-white text-base leading-snug truncate pe-8">{pl.name}</p>
+                        <p className="text-xs text-slate-400 mt-1">{fmtDate(pl.updatedAt)}</p>
+                      </div>
+
+                      {/* Financial stats */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-white/10 rounded-xl p-2.5 text-center">
+                          <p className="text-xs text-slate-400 mb-1">{p.saleCard}</p>
+                          <p className="text-sm font-bold text-white tabular-nums leading-none">{fmt(pl.saleValue)}</p>
                         </div>
-                        <div className="text-xs text-slate-400 mt-0.5 flex items-center gap-1.5 flex-wrap">
-                          <span>{fmtDate(pl.updatedAt)}</span>
-                          <span>·</span>
-                          <span>{p.saleCard}: {fmt(pl.saleValue)} {p.currency}</span>
-                          <span>·</span>
-                          <span className={plProf >= 0 ? 'text-emerald-600 font-medium' : 'text-red-500 font-medium'}>
-                            {p.profitCard}: {fmt(plProf)} {p.currency}
-                          </span>
+                        <div className="bg-white/10 rounded-xl p-2.5 text-center">
+                          <p className="text-xs text-slate-400 mb-1">{p.profitCard}</p>
+                          <p className={`text-sm font-bold tabular-nums leading-none ${plProf >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+                            {fmt(plProf)}
+                          </p>
+                        </div>
+                        <div className="bg-white/10 rounded-xl p-2.5 text-center">
+                          <p className="text-xs text-slate-400 mb-1">{p.marginCard}</p>
+                          <p className={`text-sm font-bold tabular-nums leading-none ${
+                            plMargin >= 20 ? 'text-emerald-400' : plMargin >= 10 ? 'text-amber-400' : 'text-red-400'
+                          }`}>
+                            {plMargin.toFixed(0)}%
+                          </p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-1 flex-shrink-0">
+
+                      {/* Actions */}
+                      <div className="flex items-center justify-between pt-1 border-t border-white/10">
+                        <span className="text-xs text-slate-400">
+                          {plItems.length} {p.suppliersCount}
+                        </span>
                         <button
-                          onClick={() => loadPlan(pl)}
-                          className="text-xs bg-sky-500 hover:bg-sky-600 text-white px-3 py-1.5 rounded-lg font-medium transition"
-                        >
-                          {p.openBtn}
-                        </button>
-                        <button
-                          onClick={() => deletePlan(pl.id)}
-                          className="text-slate-300 hover:text-red-500 p-1.5 rounded-lg hover:bg-red-50 transition"
+                          onClick={e => { e.stopPropagation(); deletePlan(pl.id) }}
+                          className="text-slate-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-red-500/10 transition opacity-0 group-hover:opacity-100"
                         >
                           <HiTrash size={15} />
                         </button>
