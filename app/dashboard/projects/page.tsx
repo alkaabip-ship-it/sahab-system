@@ -4,9 +4,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { usePermissions } from '@/lib/PermissionsContext'
 import {
   HiCalendarDays, HiClipboardDocumentList,
   HiDocumentText, HiCheckCircle, HiPlusCircle,
+  HiBuildingOffice2,
 } from 'react-icons/hi2'
 import Pagination from '@/components/Pagination'
 
@@ -37,6 +39,8 @@ const INV_STATUS_LABEL: Record<string, string> = {
 // Invoices tab
 // ─────────────────────────────────────────────────────────────────
 function InvoicesTab() {
+  const perms = usePermissions()
+  const fmt = (n: number) => !perms.viewFinancials ? '••••••' : formatNum(n)
   const [invoices, setInvoices]   = useState<any[]>([])
   const [loading, setLoading]     = useState(true)
   const [page,  setPage]          = useState(1)
@@ -152,11 +156,11 @@ function InvoicesTab() {
 
                   {/* Amount */}
                   <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
-                    {formatNum(inv.amount)}
+                    {fmt(inv.amount)}
                     <span className="text-xs font-normal text-slate-400 ms-1">د.إ</span>
                     {inv.balance > 0 && inv.status !== 'PAID' && (
                       <span className="block text-xs text-red-400 font-normal">
-                        متبقي {formatNum(inv.balance)}
+                        متبقي {fmt(inv.balance)}
                       </span>
                     )}
                   </td>
@@ -230,10 +234,30 @@ function InvoicesTab() {
 // ─────────────────────────────────────────────────────────────────
 export default function ProjectsPage() {
   const { t, lang } = useTranslation()
+  const perms = usePermissions()
+  const fmt = (n: number) => !perms.viewFinancials ? '••••••' : formatNum(n)
   const isAr = lang === 'ar'
 
   type MainTab = 'projects' | 'invoices'
   const [mainTab, setMainTab] = useState<MainTab>('projects')
+
+  const [officeProject, setOfficeProject] = useState<any>(null)
+
+  async function loadOfficeProject() {
+    const res = await fetch('/api/projects?search=مصاريف+المكتب&limit=5').then(r => r.json())
+    const found = (res.data || []).find((p: any) => p.name === 'مصاريف المكتب')
+    if (found) {
+      setOfficeProject(found)
+    } else {
+      // Auto-create silently
+      const cr = await fetch('/api/projects', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'مصاريف المكتب', clientName: 'سحاب', value: 0, status: 'IN_PROGRESS' }),
+      })
+      if (cr.ok) setOfficeProject(await cr.json())
+    }
+  }
 
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
@@ -277,7 +301,7 @@ export default function ProjectsPage() {
       .catch(() => setLoading(false))
   }
 
-  useEffect(() => { fetchProjects(1) }, [])
+  useEffect(() => { fetchProjects(1); loadOfficeProject() }, [])
 
   function handlePage(p: number) {
     setPage(p); fetchProjects(p); window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -385,30 +409,68 @@ export default function ProjectsPage() {
           </div>
 
           {/* Summary Cards */}
-          {!loading && (
+          {!loading && perms.viewFinancials && (
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
                 <p className="text-xs text-slate-400 mb-1">{t.projects.totalRevenue}</p>
-                <p className="text-lg font-bold text-slate-800">{formatNum(totalRevenue)}</p>
+                <p className="text-lg font-bold text-slate-800">{fmt(totalRevenue)}</p>
                 <p className="text-xs text-slate-400">{t.common.aed} · {t.common.exVat}</p>
               </div>
               <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4">
                 <p className="text-xs text-slate-400 mb-1">{t.projects.totalCosts}</p>
-                <p className="text-lg font-bold text-red-500">{formatNum(totalCosts)}</p>
+                <p className="text-lg font-bold text-red-500">{fmt(totalCosts)}</p>
                 <p className="text-xs text-slate-400">{t.common.aed} · {t.common.exVat}</p>
               </div>
               <div className="bg-amber-50 rounded-xl border border-amber-100 shadow-sm p-4">
                 <p className="text-xs text-amber-500 mb-1">{t.projects.vat}</p>
-                <p className="text-lg font-bold text-amber-700">{formatNum(netVat)}</p>
-                <p className="text-xs text-amber-400">{t.projects.vatCollected} {formatNum(vatCollected)} · {t.projects.vatPaid} {formatNum(vatPaid)}</p>
+                <p className="text-lg font-bold text-amber-700">{fmt(netVat)}</p>
+                <p className="text-xs text-amber-400">{t.projects.vatCollected} {fmt(vatCollected)} · {t.projects.vatPaid} {fmt(vatPaid)}</p>
               </div>
               <div className={`rounded-xl border shadow-sm p-4 ${totalProfit >= 0 ? 'bg-green-50 border-green-100' : 'bg-red-50 border-red-100'}`}>
                 <p className={`text-xs mb-1 ${totalProfit >= 0 ? 'text-green-500' : 'text-red-400'}`}>{t.projects.totalProfit}</p>
-                <p className={`text-lg font-bold ${totalProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{formatNum(totalProfit)}</p>
+                <p className={`text-lg font-bold ${totalProfit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmt(totalProfit)}</p>
                 <p className={`text-xs ${totalProfit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{t.common.aed} · {t.projects.avgMargin} {avgMargin.toFixed(1)}%</p>
               </div>
             </div>
           )}
+
+          {/* Office Expenses — Fixed Card */}
+          <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-slate-700 rounded-xl flex items-center justify-center flex-shrink-0">
+                <HiBuildingOffice2 size={20} className="text-slate-300" />
+              </div>
+              <div>
+                <p className="text-xs text-slate-400 mb-0.5">مصاريف ثابتة</p>
+                <p className="text-white font-semibold">مصاريف المكتب</p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-6">
+              <div className="text-center">
+                <p className="text-xs text-slate-400 mb-0.5">الفواتير المرتبطة</p>
+                <p className="text-white font-bold text-lg">
+                  {officeProject ? (officeProject.billsCount ?? officeProject._count?.bills ?? 0) : '—'}
+                </p>
+              </div>
+              {perms.viewFinancials && (
+              <div className="text-center">
+                <p className="text-xs text-slate-400 mb-0.5">إجمالي التكاليف</p>
+                <p className="text-orange-300 font-bold text-lg">
+                  {officeProject
+                    ? <>{fmt(officeProject.costsExVat ?? (officeProject.costs ?? 0) / 1.05)} <span className="text-xs font-normal">د.إ</span></>
+                    : '—'}
+                </p>
+              </div>
+              )}
+              {officeProject && (
+                <Link href={`/dashboard/projects/${officeProject.id}`}
+                  className="px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white text-xs font-medium rounded-lg transition-all whitespace-nowrap">
+                  عرض التفاصيل ←
+                </Link>
+              )}
+            </div>
+          </div>
 
           {/* Filters */}
           <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-wrap gap-3">
@@ -433,7 +495,9 @@ export default function ProjectsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {[t.projects.code, 'التاريخ', t.projects.name, t.projects.client, t.projects.value, t.projects.cost, t.projects.profit, t.projects.margin, t.projects.status, t.common.actions].map(h => (
+                      {[t.projects.code, 'التاريخ', t.projects.name, t.projects.client,
+                        ...(perms.viewFinancials ? [t.projects.value, t.projects.cost, t.projects.profit, t.projects.margin] : []),
+                        t.projects.status, t.common.actions].map(h => (
                         <th key={h} className="text-right px-4 py-3 font-semibold text-slate-600">{h}</th>
                       ))}
                     </tr>
@@ -445,11 +509,12 @@ export default function ProjectsPage() {
                         <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(p.displayDate)}</td>
                         <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
                         <td className="px-4 py-3 text-slate-600">{p.clientName}</td>
-                        <td className="px-4 py-3 text-slate-700 font-medium">{formatNum(p.revenueExVat ?? p.value / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
-                        <td className="px-4 py-3 text-slate-600">{formatNum(p.costsExVat ?? p.costs / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
+                        {perms.viewFinancials && <>
+                        <td className="px-4 py-3 text-slate-700 font-medium">{fmt(p.revenueExVat ?? p.value / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
+                        <td className="px-4 py-3 text-slate-600">{fmt(p.costsExVat ?? p.costs / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
                         <td className="px-4 py-3">
                           <span className={p.profit >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
-                            {formatNum(p.profit)} <span className="text-xs font-normal opacity-70">{t.common.aed}</span>
+                            {fmt(p.profit)} <span className="text-xs font-normal opacity-70">{t.common.aed}</span>
                           </span>
                         </td>
                         <td className="px-4 py-3">
@@ -457,6 +522,7 @@ export default function ProjectsPage() {
                             {p.margin.toFixed(1)}%
                           </span>
                         </td>
+                        </>}
                         <td className="px-4 py-3">
                           <span className={`text-xs px-2 py-1 rounded-full font-medium ${getStatusColor(p.status)}`}>
                             {t.status[p.status as keyof typeof t.status] ?? p.status}

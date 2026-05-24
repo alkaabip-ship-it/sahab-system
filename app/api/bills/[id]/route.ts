@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { getAccessToken } from '@/lib/zoho'
+import axios from 'axios'
 
 export async function DELETE(
   req: NextRequest,
@@ -63,6 +65,25 @@ export async function PUT(
       data: updateData,
       include: { supplier: true, project: true },
     })
+
+    // Update reference_number in Zoho Books if bill has zohoId and project was linked/unlinked
+    if (bill.zohoId && projectId !== undefined) {
+      try {
+        const dbOrg = await prisma.setting.findUnique({ where: { key: 'ZOHO_ORGANIZATION_ID' } })
+        const orgId = dbOrg?.value || process.env.ZOHO_ORGANIZATION_ID
+        const token = await getAccessToken()
+        await axios.put(
+          `https://www.zohoapis.com/books/v3/bills/${bill.zohoId}`,
+          { reference_number: bill.projectCode || '' },
+          {
+            headers: { Authorization: `Zoho-oauthtoken ${token}` },
+            params: { organization_id: orgId },
+          }
+        )
+      } catch (zohoErr: any) {
+        console.error('Zoho update skipped:', zohoErr?.message)
+      }
+    }
 
     return NextResponse.json(bill)
   } catch (error) {

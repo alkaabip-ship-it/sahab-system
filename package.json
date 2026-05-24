@@ -12,6 +12,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.98.0",
     "@prisma/client": "^5.17.0",
     "@types/papaparse": "^5.5.2",
     "axios": "^1.7.2",

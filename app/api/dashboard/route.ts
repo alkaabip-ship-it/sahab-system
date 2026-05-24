@@ -10,6 +10,10 @@ export async function GET() {
   }
 
   try {
+    const currentYear = new Date().getFullYear()
+    const yearStart   = new Date(currentYear, 0, 1)
+    const yearEnd     = new Date(currentYear, 11, 31, 23, 59, 59)
+
     const [
       allProjects,
       allBills,
@@ -23,6 +27,12 @@ export async function GET() {
     ])
 
     const threshold = parseFloat(thresholdSetting?.value || '20')
+
+    // Year-filtered projects for the financial summary
+    const yearProjects = allProjects.filter(p => {
+      const d = p.executionDate || p.createdAt
+      return d >= yearStart && d <= yearEnd
+    })
 
     const totalProjects = allProjects.length
     const activeProjects = allProjects.filter(
@@ -41,8 +51,23 @@ export async function GET() {
       return { ...p, costs, revenueExVat, costsExVat, profit, margin }
     })
 
-    const totalCosts  = projectsWithCosts.reduce((s, p) => s + p.costsExVat, 0)
-    const totalProfit = projectsWithCosts.reduce((s, p) => s + p.profit, 0)
+    // Year-filtered financial summary
+    const yearProjectIds = new Set(yearProjects.map(p => p.id))
+    const yearProjectsWithCosts = projectsWithCosts.filter(p => yearProjectIds.has(p.id))
+
+    const totalRevenue = yearProjectsWithCosts.reduce((s, p) => s + p.revenueExVat, 0)
+    const totalCosts   = yearProjectsWithCosts.reduce((s, p) => s + p.costsExVat, 0)
+    const totalProfit  = yearProjectsWithCosts.reduce((s, p) => s + p.profit, 0)
+
+    const vatOnRevenue = totalRevenue * 0.05
+    const vatOnCosts   = totalCosts   * 0.05
+    const netVat       = vatOnRevenue - vatOnCosts
+
+    const profitingProjects = yearProjectsWithCosts.filter(p => p.profit > 0)
+    const losingProjects    = yearProjectsWithCosts.filter(p => p.profit < 0)
+    const totalGains        = profitingProjects.reduce((s, p) => s + p.profit, 0)
+    const totalLosses       = Math.abs(losingProjects.reduce((s, p) => s + p.profit, 0))
+
     const avgProfitMargin =
       projectsWithCosts.length > 0
         ? projectsWithCosts.reduce((s, p) => s + p.margin, 0) /
@@ -78,11 +103,17 @@ export async function GET() {
     )
 
     return NextResponse.json({
+      currentYear,
       totalProjects,
       activeProjects,
-      totalValue,
+      totalValue: totalRevenue,
       totalCosts,
       totalProfit,
+      totalGains,
+      totalLosses,
+      vatOnRevenue,
+      vatOnCosts,
+      netVat,
       avgProfitMargin,
       unpaidBillsCount,
       unpaidBillsAmount,

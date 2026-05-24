@@ -68,6 +68,7 @@ export default function BillsPage() {
   const [bills, setBills] = useState<any[]>([])
   const [projects, setProjects] = useState<any[]>([])
   const [loading, setLoading]   = useState(true)
+  const [officeProject, setOfficeProject] = useState<any>(null)
   const [linkingId, setLinkingId] = useState<string | null>(null)
   const [selectedProject, setSelectedProject] = useState<Record<string, string>>({})
   const [page,  setPage]  = useState(1)
@@ -101,9 +102,29 @@ export default function BillsPage() {
   }
 
   useEffect(() => {
-    fetch('/api/projects?limit=100').then(r => r.json()).then(d => setProjects(Array.isArray(d.data) ? d.data : []))
+    fetch('/api/projects?limit=100').then(r => r.json()).then(async (d) => {
+      const all = Array.isArray(d.data) ? d.data : []
+      let office = all.find((p: any) => p.name === 'مصاريف المكتب') || null
+      if (!office) {
+        const res = await fetch('/api/projects', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name: 'مصاريف المكتب', clientName: 'سحاب', value: 1, status: 'IN_PROGRESS' }),
+        })
+        if (res.ok) office = await res.json()
+      }
+      setOfficeProject(office)
+      setProjects(all.filter((p: any) => p.name !== 'مصاريف المكتب'))
+    })
   }, [])
   useEffect(() => { loadBills(tab, 1) }, [tab])
+
+  useEffect(() => {
+    fetch('/api/sync/bills', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => { if (d.deleted > 0) loadBills(tab, 1) })
+      .catch(() => {})
+  }, [])
 
   async function handleLink(billId: string) {
     const projectId = selectedProject[billId]
@@ -175,7 +196,9 @@ export default function BillsPage() {
                         <div className="flex items-center gap-2">
                           <select value={selectedProject[b.id] || ''} onChange={(e) => setSelectedProject({ ...selectedProject, [b.id]: e.target.value })}
                             className="text-xs border border-slate-200 rounded px-2 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-sky-500">
-                            <option value="">...</option>
+                            <option value="">— اختر مشروع —</option>
+                            {officeProject && <option value={officeProject.id}>🏢 مصاريف المكتب</option>}
+                            {officeProject && <option disabled>──────────</option>}
                             {projects.map((p) => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
                           </select>
                           <button onClick={() => handleLink(b.id)} disabled={!selectedProject[b.id] || linkingId === b.id}

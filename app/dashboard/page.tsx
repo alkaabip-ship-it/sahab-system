@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { usePermissions } from '@/lib/PermissionsContext'
 import {
   HiClipboardDocumentList, HiBolt, HiBriefcase, HiBanknotes,
   HiArrowTrendingUp, HiAdjustmentsHorizontal, HiBell,
-  HiExclamationCircle, HiExclamationTriangle,
+  HiExclamationCircle, HiExclamationTriangle, HiSparkles,
 } from 'react-icons/hi2'
 
 function KPICard({ title, value, sub, color, icon, delay = '' }: { title: string; value: string; sub?: string; color: string; icon: React.ReactNode; delay?: string }) {
@@ -25,10 +26,17 @@ function KPICard({ title, value, sub, color, icon, delay = '' }: { title: string
 
 export default function DashboardPage() {
   const { t } = useTranslation()
+  const perms = usePermissions()
+  const mask = !perms.viewFinancials
   const [data, setData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [warnings, setWarnings] = useState<any[]>([])
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
+  const [chatMessages, setChatMessages] = useState<{ q: string; a: string }[]>([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
 
   useEffect(() => {
     fetch('/api/dashboard')
@@ -42,7 +50,38 @@ export default function DashboardPage() {
       .catch(() => {})
   }, [])
 
-  const formatNum = (n: number) => new Intl.NumberFormat('ar-AE').format(Math.round(n))
+  const formatNum = (n: number) => mask ? '••••••' : new Intl.NumberFormat('ar-AE').format(Math.round(n))
+
+  async function askAi() {
+    const q = chatInput.trim()
+    if (!q || chatLoading) return
+    setChatInput('')
+    setChatLoading(true)
+    try {
+      const res = await fetch('/api/ai/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: q }),
+      })
+      const d = await res.json()
+      setChatMessages(prev => [...prev, { q, a: d.answer || d.error || 'حدث خطأ' }])
+    } catch {
+      setChatMessages(prev => [...prev, { q, a: 'حدث خطأ في الاتصال' }])
+    }
+    setChatLoading(false)
+  }
+
+  async function runAiAnalysis() {
+    setAnalyzing(true)
+    try {
+      const res = await fetch('/api/ai/company-analysis')
+      const d = await res.json()
+      setAiAnalysis(d.analysis || 'لم يتمكن الذكاء الاصطناعي من إنتاج تحليل.')
+    } catch {
+      setAiAnalysis('حدث خطأ أثناء التحليل.')
+    }
+    setAnalyzing(false)
+  }
 
   if (loading) {
     return (
@@ -83,6 +122,145 @@ export default function DashboardPage() {
               </a>
             </div>
           ))}
+        </div>
+      )}
+
+      {/* Financial Summary */}
+      <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 text-white">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">
+            الملخص المالي السنوي (بدون ضريبة)
+          </h2>
+          <span className="text-xs bg-white/10 text-slate-300 px-3 py-1 rounded-full font-mono">
+            {data.currentYear}
+          </span>
+        </div>
+        <p className="text-xs text-slate-500 -mt-3 mb-4">
+          يشمل المشاريع التي تاريخ تنفيذها في عام {data.currentYear} فقط
+        </p>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Revenue */}
+          <div className="bg-white/10 rounded-xl p-4">
+            <p className="text-xs text-slate-400 mb-1">إجمالي الإيرادات</p>
+            <p className="text-xl font-bold text-white">{formatNum(data.totalValue)}</p>
+            <p className="text-xs text-slate-400 mt-0.5">د.إ</p>
+          </div>
+          {/* Costs */}
+          <div className="bg-white/10 rounded-xl p-4">
+            <p className="text-xs text-slate-400 mb-1">إجمالي التكاليف</p>
+            <p className="text-xl font-bold text-orange-300">{formatNum(data.totalCosts)}</p>
+            <p className="text-xs text-slate-400 mt-0.5">د.إ</p>
+          </div>
+          {/* VAT */}
+          <div className="bg-white/10 rounded-xl p-4">
+            <p className="text-xs text-slate-400 mb-1">ضريبة القيمة المضافة الصافية</p>
+            <p className="text-xl font-bold text-blue-300">{formatNum(data.netVat)}</p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              إيرادات {formatNum(data.vatOnRevenue)} — تكاليف {formatNum(data.vatOnCosts)}
+            </p>
+          </div>
+          {/* Net Profit */}
+          <div className={`rounded-xl p-4 ${data.totalProfit >= 0 ? 'bg-green-500/20 border border-green-500/30' : 'bg-red-500/20 border border-red-500/30'}`}>
+            <p className="text-xs text-slate-400 mb-1">صافي الأرباح</p>
+            <p className={`text-xl font-bold ${data.totalProfit >= 0 ? 'text-green-300' : 'text-red-300'}`}>
+              {data.totalProfit < 0 ? '-' : ''}{formatNum(Math.abs(data.totalProfit))}
+            </p>
+            <p className="text-xs text-slate-400 mt-0.5">
+              {data.totalLosses > 0 ? `خسائر ${formatNum(data.totalLosses)} د.إ` : 'لا توجد خسائر'}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* AI Analysis — admins / viewFinancials only */}
+      {perms.viewFinancials && (
+        <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+              <HiSparkles size={16} className="text-purple-400" />
+              تحليل وضع الشركة بالذكاء الاصطناعي
+            </p>
+            {!aiAnalysis && (
+              <button onClick={runAiAnalysis} disabled={analyzing}
+                className="flex items-center gap-2 px-4 py-2 bg-purple-500/20 hover:bg-purple-500/30 disabled:opacity-50 text-purple-300 text-sm font-medium rounded-lg transition-all border border-purple-500/30">
+                {analyzing
+                  ? <><div className="w-3.5 h-3.5 border-2 border-purple-300 border-t-transparent rounded-full animate-spin" /> جاري التحليل...</>
+                  : <><HiSparkles size={14} /> تحليل الآن</>}
+              </button>
+            )}
+            {aiAnalysis && (
+              <button onClick={() => { setAiAnalysis(null) }}
+                className="text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                إعادة التحليل
+              </button>
+            )}
+          </div>
+
+          {!aiAnalysis && !analyzing && (
+            <p className="text-xs text-slate-500 mt-3">
+              اضغط "تحليل الآن" ليشرح Claude وضع الشركة المالي ويقدم توصيات مبنية على البيانات الفعلية.
+            </p>
+          )}
+
+          {analyzing && (
+            <div className="flex items-center gap-3 mt-4 text-slate-400 text-sm">
+              <div className="w-4 h-4 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+              Claude يحلل بيانات الشركة...
+            </div>
+          )}
+
+          {aiAnalysis && (
+            <div className="mt-4 text-sm text-slate-200 whitespace-pre-line leading-relaxed border-t border-white/10 pt-4">
+              {aiAnalysis}
+            </div>
+          )}
+
+          {/* Chat Q&A */}
+          {chatMessages.length > 0 && (
+            <div className="mt-3 border-t border-white/10 pt-3 overflow-y-auto max-h-52 space-y-2 scrollbar-thin">
+              {chatMessages.map((m, i) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex justify-end">
+                    <span className="bg-purple-500/25 text-purple-200 text-xs px-2.5 py-1 rounded-xl rounded-bl-sm max-w-[80%]">
+                      {m.q}
+                    </span>
+                  </div>
+                  <div className="flex justify-start">
+                    <span className="bg-white/10 text-slate-300 text-xs px-2.5 py-1.5 rounded-xl rounded-br-sm max-w-[80%] whitespace-pre-line leading-relaxed">
+                      {m.a}
+                    </span>
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <span className="bg-white/10 text-slate-400 text-xs px-2.5 py-1 rounded-xl flex items-center gap-1.5">
+                    <div className="w-2.5 h-2.5 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+                    Claude يفكر...
+                  </span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Input */}
+          <div className="flex gap-2 mt-3 border-t border-white/10 pt-3">
+            <input
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !e.shiftKey && askAi()}
+              placeholder="اسألني عن وضع الشركة، المشاريع، الموردين..."
+              className="flex-1 bg-white/10 text-white placeholder-slate-500 text-sm px-3 py-2 rounded-lg border border-white/10 focus:outline-none focus:border-purple-500/50"
+              dir="rtl"
+            />
+            <button
+              onClick={askAi}
+              disabled={chatLoading || !chatInput.trim()}
+              className="px-3 py-2 bg-purple-500/30 hover:bg-purple-500/50 disabled:opacity-40 text-purple-300 rounded-lg transition-all border border-purple-500/30"
+            >
+              <HiSparkles size={16} />
+            </button>
+          </div>
         </div>
       )}
 
