@@ -145,3 +145,12 @@ model CompanyExpense {
   period     String    // MONTHLY, ANNUAL, BIANNUAL
   expiryDate DateTime?
 }
+
+model ProjectPlan {
+  id          String   @id @default(cuid())
+  name        String
+  saleValue   Float    @default(0)
+  items       String   // JSON array of supplier quote items
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
