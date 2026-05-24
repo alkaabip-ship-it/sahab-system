@@ -10,7 +10,7 @@ import { PermissionsProvider, usePermissions } from '@/lib/PermissionsContext'
 import {
   HiSquares2X2, HiClipboardDocumentList, HiBuildingOffice2,
   HiDocumentText, HiUsers, HiChartBarSquare, HiCog6Tooth,
-  HiCog8Tooth, HiSparkles, HiEnvelope, HiUserGroup,
+  HiCog8Tooth, HiSparkles, HiEnvelope, HiUserGroup, HiCalculator,
 } from 'react-icons/hi2'
 
 function LogoBrand() {
@@ -44,6 +44,7 @@ function SidebarNav({ sidebarOpen }: { sidebarOpen: boolean }) {
     { href: '/dashboard/clients',       label: t.nav.clients,    icon: <HiUsers size={20} />,               key: 'clients' },
     { href: '/dashboard/reports',       label: t.nav.reports,    icon: <HiChartBarSquare size={20} />,      key: 'reports' },
     { href: '/dashboard/admin',         label: t.nav.admin,      icon: <HiCog6Tooth size={20} />,           key: 'admin' },
+    { href: '/dashboard/planning',       label: 'التخطيط',        icon: <HiCalculator size={20} />,          key: 'planning' },
     { href: '/dashboard/upload-bill',   label: 'رفع فاتورة AI', icon: <HiSparkles size={20} />,            key: 'uploadBill' },
     { href: '/dashboard/communications',label: 'التواصل',        icon: <HiEnvelope size={20} />,            key: 'communications' },
     { href: '/dashboard/users',         label: 'المستخدمون',     icon: <HiUserGroup size={20} />,           key: '__admin_only__' },
