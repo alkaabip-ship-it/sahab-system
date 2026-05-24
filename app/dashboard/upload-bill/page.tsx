@@ -28,7 +28,11 @@ export default function UploadBillPage() {
   const cameraRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    fetch('/api/projects?limit=100').then(r => r.json()).then(d => setProjects(Array.isArray(d.data) ? d.data : []))
+    fetch('/api/projects?limit=100').then(r => r.json()).then(d => {
+      const list = Array.isArray(d.data) ? d.data : []
+      list.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      setProjects(list)
+    })
     fetch('/api/ai/create-expense').then(r => r.json()).then(d => setCategories(d.categories || []))
   }, [])
 

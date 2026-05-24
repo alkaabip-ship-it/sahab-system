@@ -114,7 +114,9 @@ export default function BillsPage() {
         if (res.ok) office = await res.json()
       }
       setOfficeProject(office)
-      setProjects(all.filter((p: any) => p.name !== 'مصاريف المكتب'))
+      const filtered = all.filter((p: any) => p.name !== 'مصاريف المكتب')
+      filtered.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      setProjects(filtered)
     })
   }, [])
   useEffect(() => { loadBills(tab, 1) }, [tab])
