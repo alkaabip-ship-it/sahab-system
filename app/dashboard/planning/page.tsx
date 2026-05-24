@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { HiPlus, HiTrash, HiDocumentArrowDown, HiPrinter } from 'react-icons/hi2'
 
-interface Supplier { id: string; name: string; serviceType: string }
+interface Supplier { id: string; name: string; serviceType: string; dealCount?: number }
 interface Item { id: string; supplierId: string; name: string; serviceType: string; quote: number }
 
 function fmt(n: number) {
@@ -23,7 +23,8 @@ export default function PlanningPage() {
       .then(r => r.json())
       .then(d => {
         const list: Supplier[] = Array.isArray(d.data) ? d.data : Array.isArray(d) ? d : []
-        list.sort((a, b) => a.name.localeCompare(b.name, 'ar'))
+        // رتّب حسب أكثر صفقات أولاً
+        list.sort((a, b) => (b.dealCount ?? 0) - (a.dealCount ?? 0))
         setSuppliers(list)
         if (list.length) setSelId(list[0].id)
       })
@@ -152,7 +153,9 @@ export default function PlanningPage() {
                   className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-right text-sm focus:outline-none focus:ring-2 focus:ring-sky-400"
                 >
                   {suppliers.map(s => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
+                    <option key={s.id} value={s.id}>
+                      {s.name}{s.dealCount ? ` (${s.dealCount} صفقة)` : ''}
+                    </option>
                   ))}
                 </select>
               </div>
