@@ -44,7 +44,7 @@ function SidebarNav({ sidebarOpen }: { sidebarOpen: boolean }) {
     { href: '/dashboard/clients',       label: t.nav.clients,    icon: <HiUsers size={20} />,               key: 'clients' },
     { href: '/dashboard/reports',       label: t.nav.reports,    icon: <HiChartBarSquare size={20} />,      key: 'reports' },
     { href: '/dashboard/admin',         label: t.nav.admin,      icon: <HiCog6Tooth size={20} />,           key: 'admin' },
-    { href: '/dashboard/planning',       label: 'التخطيط',        icon: <HiCalculator size={20} />,          key: 'planning' },
+    { href: '/dashboard/planning',       label: t.nav.planning,   icon: <HiCalculator size={20} />,          key: 'planning' },
     { href: '/dashboard/upload-bill',   label: 'رفع فاتورة AI', icon: <HiSparkles size={20} />,            key: 'uploadBill' },
     { href: '/dashboard/communications',label: 'التواصل',        icon: <HiEnvelope size={20} />,            key: 'communications' },
     { href: '/dashboard/users',         label: 'المستخدمون',     icon: <HiUserGroup size={20} />,           key: '__admin_only__' },
@@ -112,6 +112,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     : pathname.startsWith('/dashboard/upload-bill') ? 'رفع فاتورة AI'
     : pathname.startsWith('/dashboard/communications') ? 'التواصل'
     : pathname.startsWith('/dashboard/users') ? 'المستخدمون'
+    : pathname.startsWith('/dashboard/planning') ? t.nav.planning
     : t.nav.settings
 
   return (
