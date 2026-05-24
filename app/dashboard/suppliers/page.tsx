@@ -27,12 +27,13 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   VIDEO:       <HiFilm size={14} />,
   LABOR:       <HiUserGroup size={14} />,
   TRANSPORT:   <HiTruck size={14} />,
+  FIREWORKS:   <HiSparkles size={14} />,
   OTHER:       <HiCube size={14} />,
 }
 
 const SERVICE_KEYS = [
   'SCREENS','AUDIO','LIGHTING','PRINTING','CARPET','CARPENTRY',
-  'FLOWERS','HOSPITALITY','PHOTOGRAPHY','VIDEO','LABOR','TRANSPORT','OTHER',
+  'FLOWERS','HOSPITALITY','PHOTOGRAPHY','VIDEO','LABOR','TRANSPORT','FIREWORKS','OTHER',
 ]
 
 const SERVICE_COLORS: Record<string, string> = {
@@ -48,6 +49,7 @@ const SERVICE_COLORS: Record<string, string> = {
   VIDEO:       'bg-violet-100 text-violet-700',
   LABOR:       'bg-slate-100 text-slate-700',
   TRANSPORT:   'bg-cyan-100 text-cyan-700',
+  FIREWORKS:   'bg-red-100 text-red-700',
   OTHER:       'bg-gray-100 text-gray-700',
 }
 

@@ -80,6 +80,7 @@ const ar = {
     VIDEO: 'تصوير فيديو',
     LABOR: 'عمالة',
     TRANSPORT: 'نقل',
+    FIREWORKS: 'ألعاب نارية',
     OTHER: 'أخرى',
   },
 
@@ -455,6 +456,7 @@ const en: typeof ar = {
     VIDEO: 'Videography',
     LABOR: 'Labor',
     TRANSPORT: 'Transport',
+    FIREWORKS: 'Fireworks',
     OTHER: 'Other',
   },
 
