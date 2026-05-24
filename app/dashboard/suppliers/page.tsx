@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { getStatusLabel, getStatusColor } from '@/lib/utils'
+import { usePermissions } from '@/lib/PermissionsContext'
 import {
   HiComputerDesktop, HiSpeakerWave, HiLightBulb, HiDocumentDuplicate,
   HiViewColumns, HiWrench, HiSparkles, HiGift,
@@ -201,6 +202,8 @@ function AddSupplierModal({ onClose, onAdded }: { onClose: () => void; onAdded: 
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function SuppliersPage() {
+  const perms = usePermissions()
+  const fmt = (n: number) => !perms.viewFinancials ? '••••••' : formatNum(n)
   const [suppliers, setSuppliers] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [serviceFilter, setServiceFilter] = useState('')
@@ -376,7 +379,7 @@ export default function SuppliersPage() {
                 </div>
                 <div>
                   <p className="text-lg font-bold text-slate-800">
-                    {formatNum(s.totalAmount)}
+                    {fmt(s.totalAmount)}
                   </p>
                   <p className="text-xs text-slate-400">د.إ إجمالي</p>
                 </div>

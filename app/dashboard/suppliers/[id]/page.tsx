@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { getStatusLabel, getStatusColor } from '@/lib/utils'
+import { usePermissions } from '@/lib/PermissionsContext'
 import { HiPencil, HiTrash } from 'react-icons/hi2'
 
 const SERVICE_TYPES = [
@@ -39,6 +40,7 @@ export default function SupplierDetailPage() {
   const params = useParams()
   const router = useRouter()
   const id = params.id as string
+  const perms = usePermissions()
 
   const [supplier, setSupplier]             = useState<any>(null)
   const [loading, setLoading]               = useState(true)
@@ -260,18 +262,22 @@ export default function SupplierDetailPage() {
 
         {/* KPIs */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
-          <div className="text-center">
-            <p className="text-xs text-slate-400 mb-1">إجمالي التعاملات</p>
-            <p className="text-lg font-bold text-slate-800">
-              {formatNum(supplier.totalAmount)} <span className="text-xs font-normal text-slate-400">د.إ</span>
-            </p>
-          </div>
-          <div className="text-center">
-            <p className="text-xs text-slate-400 mb-1">المدفوع</p>
-            <p className="text-lg font-bold text-green-600">
-              {formatNum(supplier.paidAmount)} <span className="text-xs font-normal">د.إ</span>
-            </p>
-          </div>
+          {perms.viewFinancials && (
+            <div className="text-center">
+              <p className="text-xs text-slate-400 mb-1">إجمالي التعاملات</p>
+              <p className="text-lg font-bold text-slate-800">
+                {formatNum(supplier.totalAmount)} <span className="text-xs font-normal text-slate-400">د.إ</span>
+              </p>
+            </div>
+          )}
+          {perms.viewFinancials && (
+            <div className="text-center">
+              <p className="text-xs text-slate-400 mb-1">المدفوع</p>
+              <p className="text-lg font-bold text-green-600">
+                {formatNum(supplier.paidAmount)} <span className="text-xs font-normal">د.إ</span>
+              </p>
+            </div>
+          )}
           <div className="text-center">
             <p className="text-xs text-slate-400 mb-1">المشاريع</p>
             <p className="text-lg font-bold text-slate-800">{supplier.projectCount}</p>
@@ -335,7 +341,7 @@ export default function SupplierDetailPage() {
                     <tr className="border-b border-slate-100 text-slate-500">
                       <th className="text-right pb-2">رقم الفاتورة</th>
                       <th className="text-right pb-2">المشروع</th>
-                      <th className="text-right pb-2">المبلغ</th>
+                      {perms.viewFinancials && <th className="text-right pb-2">المبلغ</th>}
                       <th className="text-right pb-2">التاريخ</th>
                       <th className="text-right pb-2">الحالة</th>
                       <th className="pb-2"></th>
@@ -354,9 +360,11 @@ export default function SupplierDetailPage() {
                             <span className="text-orange-400 text-xs">غير مرتبط</span>
                           )}
                         </td>
-                        <td className="py-2 font-medium">
-                          {formatNum(b.amount)} <span className="text-xs text-slate-400">د.إ</span>
-                        </td>
+                        {perms.viewFinancials && (
+                          <td className="py-2 font-medium">
+                            {formatNum(b.amount)} <span className="text-xs text-slate-400">د.إ</span>
+                          </td>
+                        )}
                         <td className="py-2 text-xs text-slate-500">{formatDate(b.billDate)}</td>
                         <td className="py-2">
                           <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(b.status)}`}>

@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { usePermissions } from '@/lib/PermissionsContext'
 import {
   HiArrowTrendingUp, HiArrowTrendingDown, HiLink,
   HiBriefcase, HiChartBarSquare,
@@ -20,6 +21,8 @@ function Th({ children }: { children: React.ReactNode }) {
 
 export default function ReportsPage() {
   const { t, lang } = useTranslation()
+  const perms = usePermissions()
+  const fmt = (n: number) => !perms.viewFinancials ? '••••••' : formatNum(n)
   const [selectedReport, setSelectedReport] = useState('project-profitability')
   const [data, setData]     = useState<any>(null)
   const [loading, setLoading] = useState(false)
@@ -62,10 +65,10 @@ export default function ReportsPage() {
                 <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.code}</td>
                 <td className="px-4 py-3 font-medium text-slate-700">{p.name}</td>
                 <td className="px-4 py-3 text-slate-500">{p.clientName}</td>
-                <td className="px-4 py-3">{formatNum(p.revenueExVat ?? p.value / 1.05)} {aed}</td>
-                <td className="px-4 py-3">{formatNum(p.costsExVat ?? p.costs / 1.05)} {aed}</td>
-                <td className="px-4 py-3"><span className={p.profit >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{formatNum(p.profit)} {aed}</span></td>
-                <td className="px-4 py-3"><span className={`font-semibold ${p.margin >= 30 ? 'text-green-600' : p.margin >= 20 ? 'text-yellow-600' : 'text-red-500'}`}>{p.margin.toFixed(1)}%</span></td>
+                <td className="px-4 py-3">{fmt(p.revenueExVat ?? p.value / 1.05)} {aed}</td>
+                <td className="px-4 py-3">{fmt(p.costsExVat ?? p.costs / 1.05)} {aed}</td>
+                <td className="px-4 py-3"><span className={p.profit >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{fmt(p.profit)} {aed}</span></td>
+                <td className="px-4 py-3"><span className={`font-semibold ${p.margin >= 30 ? 'text-green-600' : p.margin >= 20 ? 'text-yellow-600' : 'text-red-500'}`}>{!perms.viewFinancials ? '••••••' : `${p.margin.toFixed(1)}%`}</span></td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(p.status)}`}>{t.status[p.status as keyof typeof t.status] ?? p.status}</span></td>
               </tr>
             ))}
@@ -91,7 +94,7 @@ export default function ReportsPage() {
                 <td className="px-4 py-3 font-mono text-xs text-slate-500">{b.billNumber}</td>
                 <td className="px-4 py-3 text-slate-700">{b.supplier?.name || '-'}</td>
                 {showProject && <td className="px-4 py-3 text-xs text-slate-500">{b.project?.code || <span className="text-orange-400">-</span>}</td>}
-                <td className="px-4 py-3 font-semibold">{formatNum(b.amount)} {aed}</td>
+                <td className="px-4 py-3 font-semibold">{fmt(b.amount)} {aed}</td>
                 <td className="px-4 py-3 text-xs text-slate-500">{formatDate(b.billDate, lang)}</td>
                 <td className="px-4 py-3 text-xs">{b.dueDate ? <span className={new Date(b.dueDate) < new Date() && b.status !== 'PAID' ? 'text-red-500 font-medium' : 'text-slate-500'}>{formatDate(b.dueDate, lang)}</span> : '-'}</td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(b.status)}`}>{t.status[b.status as keyof typeof t.status] ?? b.status}</span></td>
@@ -116,7 +119,7 @@ export default function ReportsPage() {
                 <td className="px-4 py-3 font-medium text-slate-700">{s.name}</td>
                 <td className="px-4 py-3 text-xs text-slate-500">{t.serviceType[s.serviceType as keyof typeof t.serviceType] ?? s.serviceType}</td>
                 <td className="px-4 py-3 text-center">{s.dealCount}</td>
-                <td className="px-4 py-3 font-semibold">{formatNum(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
+                <td className="px-4 py-3 font-semibold">{fmt(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(s.recommendation)}`}>{t.recommendation[s.recommendation as keyof typeof t.recommendation] ?? s.recommendation}</span></td>
               </tr>
             ))}
@@ -138,9 +141,9 @@ export default function ReportsPage() {
                 <td className="px-4 py-3 font-medium text-slate-700">{s.name}</td>
                 <td className="px-4 py-3 text-xs text-slate-500">{t.serviceType[s.serviceType as keyof typeof t.serviceType] ?? s.serviceType}</td>
                 <td className="px-4 py-3 text-center">{s.dealCount}</td>
-                <td className="px-4 py-3 font-semibold">{formatNum(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
-                <td className="px-4 py-3 text-green-600">{formatNum(s.paidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
-                <td className="px-4 py-3 text-red-500">{formatNum(s.unpaidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
+                <td className="px-4 py-3 font-semibold">{fmt(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
+                <td className="px-4 py-3 text-green-600">{fmt(s.paidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
+                <td className="px-4 py-3 text-red-500">{fmt(s.unpaidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(s.recommendation)}`}>{t.recommendation[s.recommendation as keyof typeof t.recommendation] ?? s.recommendation}</span></td>
               </tr>
             ))}

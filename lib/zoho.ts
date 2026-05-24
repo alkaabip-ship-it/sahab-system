@@ -21,13 +21,18 @@ export async function getAccessToken(): Promise<string> {
     return tokenSetting.value
   }
 
-  // Refresh token
-  const refreshToken = process.env.ZOHO_REFRESH_TOKEN
-  const clientId = process.env.ZOHO_CLIENT_ID
-  const clientSecret = process.env.ZOHO_CLIENT_SECRET
+  // Refresh token — read from DB first, fall back to env
+  const [dbRefresh, dbClientId, dbClientSecret] = await Promise.all([
+    prisma.setting.findUnique({ where: { key: 'ZOHO_REFRESH_TOKEN' } }),
+    prisma.setting.findUnique({ where: { key: 'ZOHO_CLIENT_ID' } }),
+    prisma.setting.findUnique({ where: { key: 'ZOHO_CLIENT_SECRET' } }),
+  ])
+  const refreshToken  = dbRefresh?.value     || process.env.ZOHO_REFRESH_TOKEN
+  const clientId      = dbClientId?.value    || process.env.ZOHO_CLIENT_ID
+  const clientSecret  = dbClientSecret?.value || process.env.ZOHO_CLIENT_SECRET
 
   if (!refreshToken || !clientId || !clientSecret) {
-    throw new Error('بيانات اعتماد Zoho غير مكتملة')
+    throw new Error('بيانات اعتماد Zoho غير مكتملة — أضفها في صفحة الإعدادات')
   }
 
   const response = await axios.post(ZOHO_AUTH_URL, null, {
@@ -39,7 +44,11 @@ export async function getAccessToken(): Promise<string> {
     },
   })
 
-  const { access_token, expires_in } = response.data
+  const { access_token, expires_in, error } = response.data
+
+  if (!access_token) {
+    throw new Error(`Zoho رفض الاتصال: ${error || JSON.stringify(response.data)}`)
+  }
 
   await prisma.setting.upsert({
     where: { key: 'ZOHO_ACCESS_TOKEN' },
@@ -160,16 +169,20 @@ export async function syncBills(
         where: { zohoId },
       })
 
+      // Preserve existing project link if Zoho has no project code
+      const resolvedProjectId = project?.id || (projectCode ? null : existingBill?.projectId) || null
+      const resolvedIsLinked  = !!resolvedProjectId
+
       const billData = {
         billNumber: bill.bill_number,
         supplierId: supplier?.id || null,
-        projectId: project?.id || null,
+        projectId: resolvedProjectId,
         amount: parseFloat(bill.total) || 0,
         billDate: new Date(bill.date),
         dueDate: bill.due_date ? new Date(bill.due_date) : null,
         status: mapBillStatus(bill.status),
-        projectCode: projectCode || null,
-        isLinked: !!project,
+        projectCode: projectCode || existingBill?.projectCode || null,
+        isLinked: resolvedIsLinked,
         updatedAt: new Date(),
       }
 
@@ -239,8 +252,9 @@ export async function fullSync(): Promise<{
   bills: number
   linked: number
 }> {
-  const orgId = process.env.ZOHO_ORGANIZATION_ID
-  if (!orgId) throw new Error('ZOHO_ORGANIZATION_ID غير محدد')
+  const dbOrg = await prisma.setting.findUnique({ where: { key: 'ZOHO_ORGANIZATION_ID' } })
+  const orgId = dbOrg?.value || process.env.ZOHO_ORGANIZATION_ID
+  if (!orgId) throw new Error('ZOHO_ORGANIZATION_ID غير محدد — أضفه في صفحة الإعدادات')
 
   const token = await getAccessToken()
 
