@@ -18,7 +18,8 @@ export async function GET() {
     )
   }
 
-  const authUrl = `https://accounts.zoho.com/oauth/v2/auth?scope=ZohoBooks.fullaccess.all&client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&access_type=offline`
+  const scopes = 'ZohoBooks.fullaccess.all,ZohoCRM.modules.Leads.CREATE,ZohoCRM.modules.Leads.READ'
+  const authUrl = `https://accounts.zoho.com/oauth/v2/auth?scope=${encodeURIComponent(scopes)}&client_id=${clientId}&response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&access_type=offline`
 
   return NextResponse.redirect(authUrl)
 }

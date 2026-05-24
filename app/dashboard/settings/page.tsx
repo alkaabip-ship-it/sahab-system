@@ -24,6 +24,8 @@ export default function SettingsPage() {
   const [loadingZoho, setLoadingZoho] = useState(true)
   const [syncing, setSyncing]         = useState(false)
   const [syncMsg, setSyncMsg]         = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [uploadingCRM, setUploadingCRM] = useState(false)
+  const [crmMsg, setCrmMsg]             = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [authCode, setAuthCode]       = useState('')
   const [exchanging, setExchanging]   = useState(false)
   const [exchangeMsg, setExchangeMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
@@ -67,6 +69,24 @@ export default function SettingsPage() {
       setExchangeMsg({ type: 'error', text: 'حدث خطأ في الاتصال' })
     } finally {
       setExchanging(false)
+    }
+  }
+
+  async function handleUploadCRMLeads() {
+    setUploadingCRM(true)
+    setCrmMsg(null)
+    try {
+      const res = await fetch('/api/zoho/crm-leads', { method: 'POST' })
+      const d = await res.json()
+      if (res.ok) {
+        setCrmMsg({ type: 'success', text: `✓ ${d.message}` })
+      } else {
+        setCrmMsg({ type: 'error', text: d.error || 'فشل الرفع إلى Zoho CRM' })
+      }
+    } catch {
+      setCrmMsg({ type: 'error', text: 'حدث خطأ في الاتصال' })
+    } finally {
+      setUploadingCRM(false)
     }
   }
 
@@ -296,11 +316,24 @@ export default function SettingsPage() {
                   <>↻ مزامنة مع Zoho Books</>
                 )}
               </button>
+              <button onClick={handleUploadCRMLeads} disabled={uploadingCRM}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-sm font-medium rounded-lg transition-all flex items-center gap-2">
+                {uploadingCRM ? (
+                  <><span className="animate-spin">↻</span> جاري الرفع...</>
+                ) : (
+                  <>⬆ رفع 55 عميل إلى Zoho CRM</>
+                )}
+              </button>
             </div>
 
             {syncMsg && (
               <div className={`p-3 rounded-lg text-sm ${syncMsg.type === 'success' ? 'bg-green-50 border border-green-200 text-green-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
                 {syncMsg.text}
+              </div>
+            )}
+            {crmMsg && (
+              <div className={`p-3 rounded-lg text-sm ${crmMsg.type === 'success' ? 'bg-blue-50 border border-blue-200 text-blue-700' : 'bg-red-50 border border-red-200 text-red-700'}`}>
+                {crmMsg.text}
               </div>
             )}
           </div>
