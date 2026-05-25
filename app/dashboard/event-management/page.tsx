@@ -107,7 +107,7 @@ export default function EventManagementPage() {
   const isRTL = lang === 'ar'
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [now, setNow] = useState(() => Date.now())
+  const [now, setNow] = useState(0)   // 0 = not mounted yet (avoids SSR/client mismatch)
   const [events,       setEvents]       = useState<EventData[]>([])
   const [activeId,     setActiveId]     = useState<string | null>(null)
   const [phase,        setPhase]        = useState<'overview'|'loading'|'unloading'|'setup'|'execution'>('overview')
@@ -136,8 +136,9 @@ export default function EventManagementPage() {
   const [showCrewMgr, setShowCrewMgr] = useState(false)
   const [newCrewName, setNewCrewName] = useState('')
 
-  // ── Tick every second for countdown ──────────────────────────────────────
+  // ── Tick every second for countdown (client-only) ────────────────────────
   useEffect(() => {
+    setNow(Date.now())                              // first paint
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [])
@@ -190,15 +191,19 @@ export default function EventManagementPage() {
   })()
 
   const countdown = (() => {
-    if (!ev?.date) return '--'
+    if (!ev?.date || now === 0) return '--:--:--'
     const diff = new Date(ev.date).getTime() - now
     if (diff <= 0) return isRTL ? '🎉 يوم الفعالية' : '🎉 EVENT DAY'
     const d  = Math.floor(diff / 86400000)
     const h  = Math.floor((diff % 86400000) / 3600000)
     const mn = Math.floor((diff % 3600000) / 60000)
     const sc = Math.floor((diff % 60000) / 1000)
-    if (d > 0) return `${d}d ${String(h).padStart(2,'0')}h ${String(mn).padStart(2,'0')}m`
-    return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}:${String(sc).padStart(2,'0')}`
+    const hh = String(h).padStart(2,'0')
+    const mm = String(mn).padStart(2,'0')
+    const ss = String(sc).padStart(2,'0')
+    // Always show seconds so user can see it ticking
+    if (d > 0) return `${d}d  ${hh}:${mm}:${ss}`
+    return `${hh}:${mm}:${ss}`
   })()
 
   // ── Event CRUD ────────────────────────────────────────────────────────────
