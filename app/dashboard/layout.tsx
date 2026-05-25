@@ -46,8 +46,7 @@ function SidebarNav({ sidebarOpen, onClose }: { sidebarOpen: boolean; onClose?: 
     { href: '/dashboard/reports',         label: t.nav.reports,         icon: <HiChartBarSquare size={20} />,       key: 'reports' },
     { href: '/dashboard/admin',           label: t.nav.admin,           icon: <HiCog6Tooth size={20} />,            key: 'admin' },
     { href: '/dashboard/planning',        label: t.nav.planning,        icon: <HiCalculator size={20} />,           key: 'planning' },
-    // CSV upload removed
-    // { href: '/dashboard/upload',      label: 'رفع الموردين CSV',    icon: <HiBuildingOffice2 size={20} />,      key: 'uploadBill' },
+    { href: '/dashboard/upload-bill',     label: t.nav.uploadBill,      icon: <HiSparkles size={20} />,             key: 'uploadBill' },
     { href: '/dashboard/communications',  label: t.nav.communications,  icon: <HiEnvelope size={20} />,             key: 'communications' },
     { href: '/dashboard/event-management',label: t.nav.eventManagement, icon: <HiFlag size={20} />,                 key: 'eventManagement' },
     { href: '/dashboard/users',           label: 'المستخدمون',          icon: <HiUserGroup size={20} />,            key: '__admin_only__' },
