@@ -31,14 +31,16 @@ export async function GET() {
   const monthlyExpenses = expenses.reduce((s, e) => s + toMonthly(e.amount, e.period), 0)
   const totalMonthlyOverhead = monthlySalaries + monthlyExpenses
 
-  // Build expiry warnings (expired or within 90 days)
+  // Build expiry warnings
+  // LICENSE → warn 15 days before  |  everything else → warn 90 days before
   type Warning = { label: string; daysLeft: number; expired: boolean; type: string }
   const warnings: Warning[] = []
 
   for (const exp of expenses) {
     if (exp.expiryDate) {
-      const days = daysUntil(exp.expiryDate)
-      if (days <= 90) {
+      const days      = daysUntil(exp.expiryDate)
+      const threshold = exp.key === 'LICENSE' ? 15 : 90
+      if (days <= threshold) {
         warnings.push({ label: exp.label, daysLeft: days, expired: days < 0, type: 'expense' })
       }
     }
