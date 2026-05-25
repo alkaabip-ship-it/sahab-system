@@ -68,24 +68,31 @@ export async function getAccessToken(): Promise<string> {
   return access_token
 }
 
-export async function syncVendors(
-  orgId: string,
-  token: string
-): Promise<number> {
-  // ── 1. Fetch ALL Zoho vendors (paginated) ────────────────────────────
-  const zohoVendors: any[] = []
+// ── Generic paginated fetcher (no DB calls) ──────────────────────────────
+async function fetchPages(
+  url: string,
+  baseParams: Record<string, any>,
+  token: string,
+  dataKey: string
+): Promise<any[]> {
+  const results: any[] = []
   let page = 1, hasMore = true
   while (hasMore) {
-    const response = await axios.get(`${ZOHO_BASE_URL}/contacts`, {
+    const res = await axios.get(url, {
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
-      params: { organization_id: orgId, contact_type: 'vendor', page, per_page: 200 },
+      params: { ...baseParams, page, per_page: 200 },
     })
-    zohoVendors.push(...(response.data.contacts ?? []))
-    hasMore = response.data.page_context?.has_more_page ?? false
+    results.push(...(res.data[dataKey] ?? []))
+    hasMore = res.data.page_context?.has_more_page ?? false
     page++
   }
+  return results
+}
 
-  // ── 2. Load existing suppliers from DB ───────────────────────────────
+// ── DB write functions (sequential, PgBouncer-safe) ───────────────────────
+
+async function writeVendors(zohoVendors: any[]): Promise<number> {
+  // ── 1. Load existing suppliers from DB ───────────────────────────────
   const existing = await prisma.supplier.findMany({
     select: { id: true, zohoId: true, serviceType: true, name: true, phone: true, email: true },
   })
@@ -124,24 +131,7 @@ export async function syncVendors(
   return zohoVendors.length
 }
 
-export async function syncCustomers(
-  orgId: string,
-  token: string
-): Promise<number> {
-  // ── 1. Fetch ALL Zoho customers (paginated) ──────────────────────────
-  const zohoCustomers: any[] = []
-  let page = 1, hasMore = true
-  while (hasMore) {
-    const res = await axios.get(`${ZOHO_BASE_URL}/contacts`, {
-      headers: { Authorization: `Zoho-oauthtoken ${token}` },
-      params: { organization_id: orgId, contact_type: 'customer', page, per_page: 200 },
-    })
-    zohoCustomers.push(...(res.data.contacts ?? []))
-    hasMore = res.data.page_context?.has_more_page ?? false
-    page++
-  }
-
-  // ── 2. Upsert all customers sequentially (PgBouncer-safe) ───────────
+async function writeCustomers(zohoCustomers: any[]): Promise<number> {
   for (const c of zohoCustomers) {
     await prisma.customer.upsert({
       where: { zohoId: c.contact_id },
@@ -165,27 +155,11 @@ export async function syncCustomers(
   return zohoCustomers.length
 }
 
-export async function syncBills(
-  orgId: string,
-  token: string
-): Promise<number> {
+async function writeBills(zohoBills: any[], orgId: string): Promise<number> {
   const codeSourceSetting = await prisma.setting.findUnique({ where: { key: 'PROJECT_CODE_SOURCE' } })
   const codeSource = codeSourceSetting?.value || 'custom_field'
 
-  // ── 1. Fetch ALL Zoho bills (all pages) ──────────────────────────────
-  const zohoBills: any[] = []
-  let page = 1, hasMore = true
-  while (hasMore) {
-    const res = await axios.get(`${ZOHO_BASE_URL}/bills`, {
-      headers: { Authorization: `Zoho-oauthtoken ${token}` },
-      params: { organization_id: orgId, page, per_page: 200 },
-    })
-    zohoBills.push(...(res.data.bills ?? []))
-    hasMore = res.data.page_context?.has_more_page ?? false
-    page++
-  }
-
-  // ── 2. Load reference data in bulk ───────────────────────────────────
+  // ── 1. Load reference data in bulk ───────────────────────────────────
   const [allSuppliers, allProjects, existingBills] = await Promise.all([
     prisma.supplier.findMany({ select: { id: true, zohoId: true } }),
     prisma.project.findMany({ select: { id: true, code: true } }),
@@ -288,24 +262,8 @@ export async function recalculateAllSupplierRecommendations(): Promise<void> {
   }
 }
 
-export async function syncInvoices(
-  orgId: string,
-  token: string
-): Promise<number> {
-  // ── 1. Fetch ALL Zoho invoices (all pages) ────────────────────────────
-  const zohoInvoices: any[] = []
-  let page = 1, hasMore = true
-  while (hasMore) {
-    const res = await axios.get(`${ZOHO_BASE_URL}/invoices`, {
-      headers: { Authorization: `Zoho-oauthtoken ${token}` },
-      params: { organization_id: orgId, page, per_page: 200 },
-    })
-    zohoInvoices.push(...(res.data.invoices ?? []))
-    hasMore = res.data.page_context?.has_more_page ?? false
-    page++
-  }
-
-  // ── 2. Load reference data in bulk ───────────────────────────────────
+async function writeInvoices(zohoInvoices: any[]): Promise<number> {
+  // ── 1. Load reference data in bulk ───────────────────────────────────
   const [allProjects, existingInvoices] = await Promise.all([
     prisma.project.findMany({ select: { id: true, clientName: true } }),
     prisma.invoice.findMany({ select: { id: true, zohoId: true, invoiceNumber: true, projectId: true } }),
@@ -387,13 +345,20 @@ export async function fullSync(): Promise<{
 
   const token = await getAccessToken()
 
-  // Run all 4 syncs in parallel — they write to different tables
-  const [vendors, customers, bills, invoices] = await Promise.all([
-    syncVendors(orgId, token),
-    syncCustomers(orgId, token),
-    syncBills(orgId, token),
-    syncInvoices(orgId, token),
+  // ── Phase 1: Fetch ALL data from Zoho API in parallel (no DB calls) ─
+  // This is safe to parallelize — pure network I/O, no shared resources.
+  const [zohoVendors, zohoCustomers, zohoBills, zohoInvoices] = await Promise.all([
+    fetchPages(`${ZOHO_BASE_URL}/contacts`, { organization_id: orgId, contact_type: 'vendor' }, token, 'contacts'),
+    fetchPages(`${ZOHO_BASE_URL}/contacts`, { organization_id: orgId, contact_type: 'customer' }, token, 'contacts'),
+    fetchPages(`${ZOHO_BASE_URL}/bills`,    { organization_id: orgId }, token, 'bills'),
+    fetchPages(`${ZOHO_BASE_URL}/invoices`, { organization_id: orgId }, token, 'invoices'),
   ])
+
+  // ── Phase 2: Write to DB sequentially (connection_limit=1 safe) ──────
+  const vendors   = await writeVendors(zohoVendors)
+  const customers = await writeCustomers(zohoCustomers)
+  const bills     = await writeBills(zohoBills, orgId)
+  const invoices  = await writeInvoices(zohoInvoices)
   const linked = await linkBillsToProjects()
   await recalculateAllSupplierRecommendations()
 
