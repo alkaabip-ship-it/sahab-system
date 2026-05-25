@@ -7,7 +7,7 @@ import {
 import { useTranslation } from '@/lib/i18n/LanguageContext'
 
 interface Supplier { id: string; name: string; serviceType: string; dealCount?: number }
-interface Item     { id: string; supplierId: string; name: string; serviceType: string; quote: number }
+interface Item     { id: string; supplierId: string; name: string; serviceType: string; quote: number; notes?: string }
 interface Plan     { id: string; name: string; saleValue: number; items: string; updatedAt: string }
 
 export default function PlanningPage() {
@@ -20,6 +20,7 @@ export default function PlanningPage() {
   const [suppliers,     setSuppliers]     = useState<Supplier[]>([])
   const [selId,         setSelId]         = useState('')
   const [quoteInput,    setQuoteInput]    = useState<number | ''>('')
+  const [notesInput,    setNotesInput]    = useState('')
   const [items,         setItems]         = useState<Item[]>([])
   const [plans,         setPlans]         = useState<Plan[]>([])
   const [showPlans,     setShowPlans]     = useState(false)
@@ -65,8 +66,10 @@ export default function PlanningPage() {
       name: sup.name,
       serviceType: sup.serviceType,
       quote: typeof quoteInput === 'number' ? quoteInput : 0,
+      notes: notesInput.trim() || undefined,
     }])
     setQuoteInput('')
+    setNotesInput('')
   }
 
   function removeItem(id: string) { setItems(prev => prev.filter(i => i.id !== id)) }
@@ -369,50 +372,64 @@ export default function PlanningPage() {
           {/* ── Add supplier form ── */}
           <div className="no-print bg-white rounded-2xl shadow-sm border border-slate-100 p-5">
             <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">{p.addSupplierTitle}</h2>
-            <div className="flex flex-col md:flex-row gap-3 items-end">
+            <div className="space-y-3">
+              <div className="flex flex-col md:flex-row gap-3 items-end">
 
-              {/* Supplier select */}
-              <div className="flex-1 min-w-0">
-                <label className="block text-xs text-slate-500 mb-1.5 font-medium">{p.supplierLabel}</label>
-                <select
-                  value={selId}
-                  onChange={e => setSelId(e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent transition"
-                >
-                  {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
-
-              {/* Service type (auto) */}
-              <div className="w-full md:w-48 flex-shrink-0">
-                <label className="block text-xs text-slate-500 mb-1.5 font-medium">{p.serviceTypeLabel}</label>
-                <div className="w-full border border-slate-100 bg-slate-50 rounded-xl px-3 py-2.5 text-sm text-slate-500 min-h-[42px] flex items-center">
-                  {selectedSupplier?.serviceType || <span className="text-slate-300">—</span>}
+                {/* Supplier select */}
+                <div className="flex-1 min-w-0">
+                  <label className="block text-xs text-slate-500 mb-1.5 font-medium">{p.supplierLabel}</label>
+                  <select
+                    value={selId}
+                    onChange={e => setSelId(e.target.value)}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent transition"
+                  >
+                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                  </select>
                 </div>
+
+                {/* Service type (auto) */}
+                <div className="w-full md:w-48 flex-shrink-0">
+                  <label className="block text-xs text-slate-500 mb-1.5 font-medium">{p.serviceTypeLabel}</label>
+                  <div className="w-full border border-slate-100 bg-slate-50 rounded-xl px-3 py-2.5 text-sm text-slate-500 min-h-[42px] flex items-center">
+                    {selectedSupplier?.serviceType || <span className="text-slate-300">—</span>}
+                  </div>
+                </div>
+
+                {/* Quote amount */}
+                <div className="w-full md:w-44 flex-shrink-0">
+                  <label className="block text-xs text-slate-500 mb-1.5 font-medium">{p.quoteLabel} ({p.currency})</label>
+                  <input
+                    type="number"
+                    value={quoteInput}
+                    onChange={e => setQuoteInput(e.target.value === '' ? '' : Number(e.target.value))}
+                    placeholder="0.00"
+                    onKeyDown={e => e.key === 'Enter' && addItem()}
+                    className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent placeholder:text-slate-300 transition"
+                  />
+                </div>
+
+                {/* Add button */}
+                <button
+                  onClick={addItem}
+                  disabled={!selId || !quoteInput}
+                  className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm flex-shrink-0"
+                >
+                  <HiPlus size={18} /> {p.addBtn}
+                </button>
+
               </div>
 
-              {/* Quote amount */}
-              <div className="w-full md:w-44 flex-shrink-0">
-                <label className="block text-xs text-slate-500 mb-1.5 font-medium">{p.quoteLabel} ({p.currency})</label>
+              {/* Notes / details row */}
+              <div>
+                <label className="block text-xs text-slate-500 mb-1.5 font-medium">{p.notesLabel}</label>
                 <input
-                  type="number"
-                  value={quoteInput}
-                  onChange={e => setQuoteInput(e.target.value === '' ? '' : Number(e.target.value))}
-                  placeholder="0.00"
+                  value={notesInput}
+                  onChange={e => setNotesInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && addItem()}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent placeholder:text-slate-300 transition"
+                  placeholder={p.notesPlaceholder}
+                  className="w-full border border-slate-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 focus:border-transparent placeholder:text-slate-300 transition text-slate-600"
                 />
               </div>
-
-              {/* Add button */}
-              <button
-                onClick={addItem}
-                disabled={!selId || !quoteInput}
-                className="flex items-center gap-2 bg-sky-500 hover:bg-sky-600 disabled:opacity-40 disabled:cursor-not-allowed text-white px-5 py-2.5 rounded-xl text-sm font-semibold transition shadow-sm flex-shrink-0"
-              >
-                <HiPlus size={18} /> {p.addBtn}
-              </button>
-
             </div>
           </div>
 
@@ -443,7 +460,12 @@ export default function PlanningPage() {
                     {items.map((item, idx) => (
                       <tr key={item.id} className="hover:bg-slate-50/60 transition group">
                         <td className="px-5 py-3.5 text-slate-400 text-xs tabular-nums">{idx + 1}</td>
-                        <td className="px-5 py-3.5 font-medium text-slate-800">{item.name}</td>
+                        <td className="px-5 py-3.5">
+                          <p className="font-medium text-slate-800 leading-snug">{item.name}</p>
+                          {item.notes && (
+                            <p className="text-xs text-slate-400 mt-0.5 leading-snug">{item.notes}</p>
+                          )}
+                        </td>
                         <td className="px-5 py-3.5">
                           <span className="bg-sky-50 text-sky-600 text-xs px-2.5 py-1 rounded-full font-medium border border-sky-100">
                             {item.serviceType}
