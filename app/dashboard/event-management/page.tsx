@@ -107,7 +107,8 @@ export default function EventManagementPage() {
   const isRTL = lang === 'ar'
 
   // ── State ────────────────────────────────────────────────────────────────
-  const [now, setNow] = useState(0)   // 0 = not mounted yet (avoids SSR/client mismatch)
+  const [now,      setNow]      = useState(0)   // 0 = not mounted yet (avoids SSR/client mismatch)
+  const [syncedAt, setSyncedAt] = useState(0)   // last successful DB sync timestamp
   const [events,       setEvents]       = useState<EventData[]>([])
   const [activeId,     setActiveId]     = useState<string | null>(null)
   const [phase,        setPhase]        = useState<'overview'|'loading'|'unloading'|'setup'|'execution'>('overview')
@@ -143,21 +144,37 @@ export default function EventManagementPage() {
     return () => clearInterval(id)
   }, [])
 
-  // ── Load from DB on mount ─────────────────────────────────────────────────
-  useEffect(() => {
+  // ── Fetch & sync helper (used on mount + polling) ────────────────────────
+  function fetchEvents(isMount = false) {
     fetch('/api/event-management')
       .then(r => r.json())
       .then(d => {
-        if (d.events && d.events.length > 0) {
-          setEvents(d.events)
-          // restore last active id from localStorage (UI preference only)
+        if (!d.events) return
+        setEvents(d.events)
+        setSyncedAt(Date.now())
+        if (isMount) {
+          // restore last viewed event from localStorage
           const saved = localStorage.getItem(STORAGE_KEY + '_activeId')
           const valid = d.events.find((e: EventData) => e.id === saved)
-          setActiveId(valid ? saved : d.events[0].id)
+          setActiveId(valid ? saved! : (d.events[0]?.id ?? null))
+        } else {
+          // on poll: keep current activeId only if event still exists
+          setActiveId(cur => {
+            const still = d.events.find((e: EventData) => e.id === cur)
+            return still ? cur : (d.events[0]?.id ?? null)
+          })
         }
-        // no events in DB → empty state, user creates first one
       })
-      .catch(() => {/* network error — keep empty */})
+      .catch(() => {})
+  }
+
+  // ── Load on mount ─────────────────────────────────────────────────────────
+  useEffect(() => { fetchEvents(true) }, [])
+
+  // ── Poll every 12 s — all users see changes without refreshing ────────────
+  useEffect(() => {
+    const id = setInterval(() => fetchEvents(false), 12000)
+    return () => clearInterval(id)
   }, [])
 
   // ── Save active-event preference locally (not data) ───────────────────────
@@ -395,12 +412,21 @@ export default function EventManagementPage() {
           </button>
         ))}
 
-        {/* Master progress */}
-        <div style={{ display:'flex', alignItems:'center', padding:'0 12px', gap:8, flexShrink:0, borderLeft:`1px solid ${C.border}` }}>
+        {/* Master progress + sync indicator */}
+        <div style={{ display:'flex', alignItems:'center', padding:'0 12px', gap:10, flexShrink:0, borderLeft:`1px solid ${C.border}` }}>
           <div style={{ width:70, height:5, background:'rgba(255,255,255,0.07)', borderRadius:3, overflow:'hidden' }}>
             <div style={{ height:'100%', width:`${overall}%`, background:`linear-gradient(to right,${C.load},${C.setup})`, transition:'width .5s' }}/>
           </div>
           <span style={{ fontSize:11, fontWeight:700, color:C.load }}>{overall}%</span>
+          {/* Live sync dot */}
+          <div title={syncedAt ? `آخر مزامنة: ${new Date(syncedAt).toLocaleTimeString('ar-AE')}` : 'جاري المزامنة...'}
+            style={{ display:'flex', alignItems:'center', gap:4, cursor:'default' }}>
+            <div style={{ width:7, height:7, borderRadius:'50%', background: syncedAt ? C.success : C.textM,
+              boxShadow: syncedAt ? `0 0 6px ${C.success}` : 'none', animation: syncedAt ? 'pulse 2s infinite' : 'none' }}/>
+            <span style={{ fontSize:9, color: syncedAt ? C.success : C.textM, fontWeight:600, letterSpacing:.3 }}>
+              {syncedAt ? 'LIVE' : '--'}
+            </span>
+          </div>
         </div>
       </div>
 
