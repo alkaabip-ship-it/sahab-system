@@ -10,6 +10,8 @@ import {
   HiViewColumns, HiWrench, HiSparkles, HiGift,
   HiCamera, HiFilm, HiUserGroup, HiTruck, HiCube,
   HiBuildingOffice2, HiHome, HiScissors, HiCog6Tooth,
+  HiCpuChip, HiDeviceTablet, HiArchiveBox, HiTrophy,
+  HiShieldCheck, HiKey, HiMusicalNote, HiBolt, HiUserCircle,
 } from 'react-icons/hi2'
 import Pagination from '@/components/Pagination'
 
@@ -28,16 +30,26 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   LABOR:       <HiUserGroup size={14} />,
   TRANSPORT:   <HiTruck size={14} />,
   FIREWORKS:   <HiSparkles size={14} />,
-  FURNITURE:   <HiHome size={14} />,
-  CURTAINS:    <HiScissors size={14} />,
-  AV_TECH:     <HiCog6Tooth size={14} />,
-  OTHER:       <HiCube size={14} />,
+  FURNITURE:      <HiHome size={14} />,
+  CURTAINS:       <HiScissors size={14} />,
+  AV_TECH:        <HiCog6Tooth size={14} />,
+  TECH_AI:        <HiCpuChip size={14} />,
+  TECH_RENTAL:    <HiDeviceTablet size={14} />,
+  CLEANING:       <HiArchiveBox size={14} />,
+  GIFTS:          <HiTrophy size={14} />,
+  SECURITY:       <HiShieldCheck size={14} />,
+  VALET:          <HiKey size={14} />,
+  ENTERTAINMENT:  <HiMusicalNote size={14} />,
+  GENERATORS:     <HiBolt size={14} />,
+  RECEPTION:      <HiUserCircle size={14} />,
+  OTHER:          <HiCube size={14} />,
 }
 
 const SERVICE_KEYS = [
   'SCREENS','AUDIO','LIGHTING','PRINTING','CARPET','CARPENTRY',
   'FLOWERS','HOSPITALITY','PHOTOGRAPHY','VIDEO','LABOR','TRANSPORT','FIREWORKS',
-  'FURNITURE','CURTAINS','AV_TECH','OTHER',
+  'FURNITURE','CURTAINS','AV_TECH','TECH_AI','TECH_RENTAL','CLEANING',
+  'GIFTS','SECURITY','VALET','ENTERTAINMENT','GENERATORS','RECEPTION','OTHER',
 ]
 
 const SERVICE_COLORS: Record<string, string> = {
@@ -54,10 +66,19 @@ const SERVICE_COLORS: Record<string, string> = {
   LABOR:       'bg-slate-100 text-slate-700',
   TRANSPORT:   'bg-cyan-100 text-cyan-700',
   FIREWORKS:   'bg-red-100 text-red-700',
-  FURNITURE:   'bg-amber-100 text-amber-800',
-  CURTAINS:    'bg-teal-100 text-teal-700',
-  AV_TECH:     'bg-sky-100 text-sky-700',
-  OTHER:       'bg-gray-100 text-gray-700',
+  FURNITURE:     'bg-amber-100 text-amber-800',
+  CURTAINS:      'bg-teal-100 text-teal-700',
+  AV_TECH:       'bg-sky-100 text-sky-700',
+  TECH_AI:       'bg-emerald-100 text-emerald-700',
+  TECH_RENTAL:   'bg-green-100 text-green-700',
+  CLEANING:      'bg-sky-200 text-sky-800',
+  GIFTS:         'bg-fuchsia-100 text-fuchsia-700',
+  SECURITY:      'bg-zinc-200 text-zinc-800',
+  VALET:         'bg-stone-100 text-stone-700',
+  ENTERTAINMENT: 'bg-orange-200 text-orange-800',
+  GENERATORS:    'bg-yellow-200 text-yellow-800',
+  RECEPTION:     'bg-rose-200 text-rose-800',
+  OTHER:         'bg-gray-100 text-gray-700',
 }
 
 function formatNum(n: number) {
