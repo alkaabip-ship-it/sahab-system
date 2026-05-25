@@ -9,7 +9,7 @@ import {
   HiComputerDesktop, HiSpeakerWave, HiLightBulb, HiDocumentDuplicate,
   HiViewColumns, HiWrench, HiSparkles, HiGift,
   HiCamera, HiFilm, HiUserGroup, HiTruck, HiCube,
-  HiBuildingOffice2,
+  HiBuildingOffice2, HiHome, HiScissors, HiCog6Tooth,
 } from 'react-icons/hi2'
 import Pagination from '@/components/Pagination'
 
@@ -28,12 +28,16 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   LABOR:       <HiUserGroup size={14} />,
   TRANSPORT:   <HiTruck size={14} />,
   FIREWORKS:   <HiSparkles size={14} />,
+  FURNITURE:   <HiHome size={14} />,
+  CURTAINS:    <HiScissors size={14} />,
+  AV_TECH:     <HiCog6Tooth size={14} />,
   OTHER:       <HiCube size={14} />,
 }
 
 const SERVICE_KEYS = [
   'SCREENS','AUDIO','LIGHTING','PRINTING','CARPET','CARPENTRY',
-  'FLOWERS','HOSPITALITY','PHOTOGRAPHY','VIDEO','LABOR','TRANSPORT','FIREWORKS','OTHER',
+  'FLOWERS','HOSPITALITY','PHOTOGRAPHY','VIDEO','LABOR','TRANSPORT','FIREWORKS',
+  'FURNITURE','CURTAINS','AV_TECH','OTHER',
 ]
 
 const SERVICE_COLORS: Record<string, string> = {
@@ -50,6 +54,9 @@ const SERVICE_COLORS: Record<string, string> = {
   LABOR:       'bg-slate-100 text-slate-700',
   TRANSPORT:   'bg-cyan-100 text-cyan-700',
   FIREWORKS:   'bg-red-100 text-red-700',
+  FURNITURE:   'bg-amber-100 text-amber-800',
+  CURTAINS:    'bg-teal-100 text-teal-700',
+  AV_TECH:     'bg-sky-100 text-sky-700',
   OTHER:       'bg-gray-100 text-gray-700',
 }
 

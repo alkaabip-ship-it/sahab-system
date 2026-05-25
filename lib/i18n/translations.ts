@@ -81,6 +81,9 @@ const ar = {
     LABOR: 'عمالة',
     TRANSPORT: 'نقل',
     FIREWORKS: 'ألعاب نارية',
+    FURNITURE: 'أثاث',
+    CURTAINS:  'ستائر',
+    AV_TECH:   'فني تشغيل',
     OTHER: 'أخرى',
   },
 
@@ -457,6 +460,9 @@ const en: typeof ar = {
     LABOR: 'Labor',
     TRANSPORT: 'Transport',
     FIREWORKS: 'Fireworks',
+    FURNITURE: 'Furniture',
+    CURTAINS:  'Curtains & Drapes',
+    AV_TECH:   'AV Technician',
     OTHER: 'Other',
   },
 
