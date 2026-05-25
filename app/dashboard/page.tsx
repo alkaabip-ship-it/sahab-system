@@ -327,18 +327,18 @@ export default function DashboardPage() {
                     : 'text-teal-700'
                   }`}>الدفعة القادمة</p>
                 </div>
-                {rentInfo.nextPaymentDate ? (
+                {rentInfo.nextPayment ? (
                   <>
                     <p className={`text-xl font-black ${
                       rentInfo.nextPaymentDays! <= 7  ? 'text-red-600'
                       : rentInfo.nextPaymentDays! <= 30 ? 'text-amber-600'
                       : 'text-teal-700'
                     }`}>
-                      {new Intl.NumberFormat('ar-AE').format(rentInfo.quarterly)}
+                      {new Intl.NumberFormat('ar-AE').format(rentInfo.nextPayment.amount)}
                       <span className="text-xs font-normal mr-1">د.إ</span>
                     </p>
                     <p className="text-xs text-slate-500 mt-1">
-                      {rentInfo.nextPaymentDate.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      {rentInfo.nextPayment.date.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })}
                     </p>
                     <p className={`text-xs font-bold mt-1 ${
                       rentInfo.nextPaymentDays! <= 7  ? 'text-red-600'
