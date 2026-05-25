@@ -240,6 +240,15 @@ export async function syncBills(
     await prisma.bill.update({ where: { zohoId }, data })
   }
 
+  // ── 5. Delete bills removed in Zoho ─────────────────────────────────
+  const zohoBillIdSet = new Set(zohoBills.map(b => b.bill_id))
+  const billsToDelete = existingBills
+    .filter(b => b.zohoId && !zohoBillIdSet.has(b.zohoId))
+    .map(b => b.id)
+  if (billsToDelete.length > 0) {
+    await prisma.bill.deleteMany({ where: { id: { in: billsToDelete } } })
+  }
+
   return zohoBills.length
 }
 
@@ -350,6 +359,15 @@ export async function syncInvoices(
   }
   for (const { id, data } of toUpdate) {
     await prisma.invoice.update({ where: { id }, data })
+  }
+
+  // ── 5. Delete invoices removed in Zoho ──────────────────────────────
+  const zohoInvIdSet = new Set(zohoInvoices.map(i => i.invoice_id))
+  const invToDelete = existingInvoices
+    .filter(i => i.zohoId && !zohoInvIdSet.has(i.zohoId))
+    .map(i => i.id)
+  if (invToDelete.length > 0) {
+    await prisma.invoice.deleteMany({ where: { id: { in: invToDelete } } })
   }
 
   return zohoInvoices.length
