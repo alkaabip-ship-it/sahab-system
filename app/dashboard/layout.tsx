@@ -46,7 +46,8 @@ function SidebarNav({ sidebarOpen, onClose }: { sidebarOpen: boolean; onClose?: 
     { href: '/dashboard/reports',         label: t.nav.reports,         icon: <HiChartBarSquare size={20} />,       key: 'reports' },
     { href: '/dashboard/admin',           label: t.nav.admin,           icon: <HiCog6Tooth size={20} />,            key: 'admin' },
     { href: '/dashboard/planning',        label: t.nav.planning,        icon: <HiCalculator size={20} />,           key: 'planning' },
-    { href: '/dashboard/upload',         label: 'رفع الموردين CSV',    icon: <HiBuildingOffice2 size={20} />,      key: 'uploadBill' },
+    // CSV upload removed
+    // { href: '/dashboard/upload',      label: 'رفع الموردين CSV',    icon: <HiBuildingOffice2 size={20} />,      key: 'uploadBill' },
     { href: '/dashboard/communications',  label: t.nav.communications,  icon: <HiEnvelope size={20} />,             key: 'communications' },
     { href: '/dashboard/event-management',label: t.nav.eventManagement, icon: <HiFlag size={20} />,                 key: 'eventManagement' },
     { href: '/dashboard/users',           label: 'المستخدمون',          icon: <HiUserGroup size={20} />,            key: '__admin_only__' },
@@ -139,7 +140,6 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     : pathname.startsWith('/dashboard/reports') ? t.nav.reports
     : pathname.startsWith('/dashboard/admin') ? t.nav.admin
     : pathname.startsWith('/dashboard/upload-bill') ? t.nav.uploadBill
-    : pathname.startsWith('/dashboard/upload') ? 'رفع الموردين CSV'
     : pathname.startsWith('/dashboard/communications') ? t.nav.communications
     : pathname.startsWith('/dashboard/users') ? 'المستخدمون'
     : pathname.startsWith('/dashboard/planning') ? t.nav.planning
