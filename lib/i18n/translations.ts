@@ -19,6 +19,7 @@ const ar = {
     planning: 'التخطيط',
     uploadBill: 'رفع فاتورة AI',
     communications: 'التواصل',
+    eventManagement: 'إدارة الفعالية',
   },
 
   common: {
@@ -412,6 +413,7 @@ const en: typeof ar = {
     planning: 'Planning',
     uploadBill: 'Upload Bill AI',
     communications: 'Communications',
+    eventManagement: 'Event Management',
   },
 
   common: {

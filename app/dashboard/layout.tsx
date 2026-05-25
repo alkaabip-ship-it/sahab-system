@@ -11,6 +11,7 @@ import {
   HiSquares2X2, HiClipboardDocumentList, HiBuildingOffice2,
   HiDocumentText, HiUsers, HiChartBarSquare, HiCog6Tooth,
   HiCog8Tooth, HiSparkles, HiEnvelope, HiUserGroup, HiCalculator,
+  HiFlag,
 } from 'react-icons/hi2'
 
 function LogoBrand() {
@@ -47,6 +48,7 @@ function SidebarNav({ sidebarOpen }: { sidebarOpen: boolean }) {
     { href: '/dashboard/planning',       label: t.nav.planning,   icon: <HiCalculator size={20} />,          key: 'planning' },
     { href: '/dashboard/upload-bill',   label: t.nav.uploadBill,      icon: <HiSparkles size={20} />,  key: 'uploadBill' },
     { href: '/dashboard/communications',label: t.nav.communications,  icon: <HiEnvelope size={20} />,  key: 'communications' },
+    { href: '/dashboard/event-management', label: t.nav.eventManagement, icon: <HiFlag size={20} />, key: 'eventManagement' },
     { href: '/dashboard/users',         label: 'المستخدمون',     icon: <HiUserGroup size={20} />,           key: '__admin_only__' },
     { href: '/dashboard/settings',      label: t.nav.settings,   icon: <HiCog8Tooth size={20} />,           key: 'settings' },
   ]
@@ -113,6 +115,7 @@ function DashboardInner({ children }: { children: React.ReactNode }) {
     : pathname.startsWith('/dashboard/communications') ? t.nav.communications
     : pathname.startsWith('/dashboard/users') ? 'المستخدمون'
     : pathname.startsWith('/dashboard/planning') ? t.nav.planning
+    : pathname.startsWith('/dashboard/event-management') ? t.nav.eventManagement
     : t.nav.settings
 
   return (
