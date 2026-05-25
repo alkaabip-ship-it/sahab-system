@@ -3,12 +3,28 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+// Always fetch fresh data — never serve a cached response
+export const dynamic = 'force-dynamic'
+
+// Ensure the table exists (safe to call on every request — CREATE IF NOT EXISTS is a no-op)
+async function ensureTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS event_management_events (
+      id         TEXT PRIMARY KEY,
+      data       JSONB NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `)
+}
+
 // GET — load all events
 export async function GET() {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
 
   try {
+    await ensureTable()
     const rows = await prisma.$queryRawUnsafe<{ id: string; data: unknown }[]>(
       `SELECT id, data FROM event_management_events ORDER BY created_at ASC`
     )
