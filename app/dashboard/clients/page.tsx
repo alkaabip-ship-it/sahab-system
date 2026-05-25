@@ -161,15 +161,16 @@ export default function ClientsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">#</th>
+                  <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600">#</th>
                   <th className="text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'العميل' : 'Client'}</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'الفواتير' : 'Invoices'}</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'المشاريع' : 'Projects'}</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'إجمالي الفواتير' : 'Total Invoiced'}</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'المدفوع' : 'Paid'}</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'المتبقي' : 'Balance'}</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'نسبة السداد' : 'Pay Rate'}</th>
-                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'آخر نشاط' : 'Last Activity'}</th>
+                  <th className="hidden lg:table-cell text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'التواصل' : 'Contact'}</th>
+                  <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'الفواتير' : 'Invoices'}</th>
+                  <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600">{isAr ? 'المشاريع' : 'Projects'}</th>
+                  <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{isAr ? 'إجمالي الفواتير' : 'Total Invoiced'}</th>
+                  <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{isAr ? 'المدفوع' : 'Paid'}</th>
+                  <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{isAr ? 'المتبقي' : 'Balance'}</th>
+                  <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{isAr ? 'نسبة السداد' : 'Pay Rate'}</th>
+                  <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{isAr ? 'آخر نشاط' : 'Last Activity'}</th>
                 </tr>
               </thead>
               <tbody>
@@ -177,32 +178,44 @@ export default function ClientsPage() {
                   const payRate = c.invoiceTotal > 0 ? (c.invoicePaid / c.invoiceTotal) * 100 : 0
                   return (
                     <tr key={c.name} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-xs text-slate-400">{i + 1}</td>
+                      <td className="hidden sm:table-cell px-4 py-3 text-xs text-slate-400">{i + 1}</td>
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <Avatar name={c.name} />
-                          <span className="font-medium text-slate-800 text-sm">{c.name}</span>
+                          <div>
+                            <p className="font-medium text-slate-800 text-sm">{c.name}</p>
+                            {c.company && c.company !== c.name && (
+                              <p className="text-xs text-slate-400">{c.company}</p>
+                            )}
+                          </div>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="hidden lg:table-cell px-4 py-3">
+                        <div className="text-xs text-slate-500 space-y-0.5">
+                          {c.phone && <p>📞 {c.phone}</p>}
+                          {c.email && <p>✉ {c.email}</p>}
+                          {!c.phone && !c.email && <p className="text-slate-300">—</p>}
+                        </div>
+                      </td>
+                      <td className="hidden md:table-cell px-4 py-3 text-center">
                         <span className="text-slate-700 font-medium">{c.invoiceCount}</span>
                       </td>
-                      <td className="px-4 py-3 text-center">
+                      <td className="hidden md:table-cell px-4 py-3 text-center">
                         <span className="text-slate-500">{c.projectCount || '-'}</span>
                       </td>
-                      <td className="px-4 py-3 font-semibold text-slate-700">
+                      <td className="px-4 py-3 font-semibold text-slate-700 whitespace-nowrap">
                         {formatNum(c.invoiceTotal)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span>
                       </td>
-                      <td className="px-4 py-3 text-green-600 font-medium">
+                      <td className="hidden sm:table-cell px-4 py-3 text-green-600 font-medium whitespace-nowrap">
                         {formatNum(c.invoicePaid)} <span className="text-xs font-normal opacity-70">{t.common.aed}</span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="hidden sm:table-cell px-4 py-3 whitespace-nowrap">
                         <span className={c.invoiceBalance > 0 ? 'text-red-500 font-medium' : 'text-slate-400'}>
                           {c.invoiceBalance > 0 ? formatNum(c.invoiceBalance) : '–'}{' '}
                           {c.invoiceBalance > 0 && <span className="text-xs font-normal opacity-70">{t.common.aed}</span>}
                         </span>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="hidden md:table-cell px-4 py-3">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[48px]">
                             <div className={`h-full rounded-full progress-bar ${payRate >= 90 ? 'bg-green-400' : payRate >= 50 ? 'bg-yellow-400' : 'bg-red-400'}`}
@@ -213,7 +226,7 @@ export default function ClientsPage() {
                           </span>
                         </div>
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-400">{formatDate(c.lastActivity, lang)}</td>
+                      <td className="hidden md:table-cell px-4 py-3 text-xs text-slate-400 whitespace-nowrap">{formatDate(c.lastActivity, lang)}</td>
                     </tr>
                   )
                 })}

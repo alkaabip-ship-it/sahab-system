@@ -125,6 +125,47 @@ export async function syncVendors(
   return zohoVendors.length
 }
 
+export async function syncCustomers(
+  orgId: string,
+  token: string
+): Promise<number> {
+  // ── 1. Fetch ALL Zoho customers (paginated) ──────────────────────────
+  const zohoCustomers: any[] = []
+  let page = 1, hasMore = true
+  while (hasMore) {
+    const res = await axios.get(`${ZOHO_BASE_URL}/contacts`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+      params: { organization_id: orgId, contact_type: 'customer', page, per_page: 200 },
+    })
+    zohoCustomers.push(...(res.data.contacts ?? []))
+    hasMore = res.data.page_context?.has_more_page ?? false
+    page++
+  }
+
+  // ── 2. Bulk upsert ───────────────────────────────────────────────────
+  for (const c of zohoCustomers) {
+    await prisma.customer.upsert({
+      where: { zohoId: c.contact_id },
+      update: {
+        name:    c.contact_name,
+        phone:   c.phone || c.mobile || null,
+        email:   c.email || null,
+        company: c.company_name || null,
+        updatedAt: new Date(),
+      },
+      create: {
+        zohoId:  c.contact_id,
+        name:    c.contact_name,
+        phone:   c.phone || c.mobile || null,
+        email:   c.email || null,
+        company: c.company_name || null,
+      },
+    })
+  }
+
+  return zohoCustomers.length
+}
+
 export async function syncBills(
   orgId: string,
   token: string
@@ -323,10 +364,11 @@ export async function fullSync(): Promise<{
 
   const token = await getAccessToken()
 
-  const vendors  = await syncVendors(orgId, token)
-  const bills    = await syncBills(orgId, token)
-  const invoices = await syncInvoices(orgId, token)
-  const linked   = await linkBillsToProjects()
+  const vendors   = await syncVendors(orgId, token)
+  const customers = await syncCustomers(orgId, token)
+  const bills     = await syncBills(orgId, token)
+  const invoices  = await syncInvoices(orgId, token)
+  const linked    = await linkBillsToProjects()
   await recalculateAllSupplierRecommendations()
 
   await prisma.setting.upsert({
@@ -339,8 +381,8 @@ export async function fullSync(): Promise<{
     data: {
       syncType: 'FULL',
       status: 'SUCCESS',
-      message: `تمت المزامنة: ${vendors} مورد، ${bills} فاتورة شراء، ${invoices} فاتورة مبيعات، ${linked} مرتبطة`,
-      itemsSynced: vendors + bills + invoices,
+      message: `تمت المزامنة: ${vendors} مورد، ${customers} عميل، ${bills} فاتورة شراء، ${invoices} فاتورة مبيعات، ${linked} مرتبطة`,
+      itemsSynced: vendors + customers + bills + invoices,
     },
   })
 
