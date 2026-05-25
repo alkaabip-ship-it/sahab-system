@@ -143,31 +143,50 @@ export default function EventManagementPage() {
     return () => clearInterval(id)
   }, [])
 
-  // ── Persistence ───────────────────────────────────────────────────────────
+  // ── Load from DB on mount ─────────────────────────────────────────────────
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY)
-      if (raw) { const d = JSON.parse(raw); setEvents(d.events||[]); setActiveId(d.activeId||null) }
-      else {
-        const s = makeEvent('Corporate Gala Night', 'Abu Dhabi Tourism', 'ADNEC Hall 7', '2026-08-15')
-        setEvents([s]); setActiveId(s.id)
-      }
-    } catch {
-      const s = makeEvent('Corporate Gala Night', 'Abu Dhabi Tourism', 'ADNEC Hall 7', '2026-08-15')
-      setEvents([s]); setActiveId(s.id)
-    }
+    fetch('/api/event-management')
+      .then(r => r.json())
+      .then(d => {
+        if (d.events && d.events.length > 0) {
+          setEvents(d.events)
+          // restore last active id from localStorage (UI preference only)
+          const saved = localStorage.getItem(STORAGE_KEY + '_activeId')
+          const valid = d.events.find((e: EventData) => e.id === saved)
+          setActiveId(valid ? saved : d.events[0].id)
+        }
+        // no events in DB → empty state, user creates first one
+      })
+      .catch(() => {/* network error — keep empty */})
   }, [])
 
+  // ── Save active-event preference locally (not data) ───────────────────────
   useEffect(() => {
-    if (events.length || activeId)
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ events, activeId }))
-  }, [events, activeId])
+    if (activeId) localStorage.setItem(STORAGE_KEY + '_activeId', activeId)
+  }, [activeId])
+
+  // ── Save a single event to DB (called after every mutation) ──────────────
+  function saveEventToDB(event: EventData) {
+    fetch('/api/event-management', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    }).catch(() => {/* silent — UI already updated */})
+  }
 
   const ev = events.find(e => e.id === activeId) || null
 
   // ── Updaters ─────────────────────────────────────────────────────────────
   function upd(fn: (e: EventData) => EventData) {
-    setEvents(prev => prev.map(e => e.id === activeId ? fn(e) : e))
+    setEvents(prev => {
+      const next = prev.map(e => {
+        if (e.id !== activeId) return e
+        const updated = fn(e)
+        saveEventToDB(updated)   // persist to shared DB
+        return updated
+      })
+      return next
+    })
   }
   function addLog(msg: string, ph: string) {
     upd(e => ({ ...e, activityLog: [{ id: uid(), time: clock(), msg, phase: ph }, ...e.activityLog].slice(0,60) }))
@@ -210,10 +229,14 @@ export default function EventManagementPage() {
   function saveEvent() {
     if (!fName.trim()) return
     if (editEv) {
-      setEvents(p => p.map(e => e.id===editEv.id ? {...e, name:fName, client:fClient, venue:fVenue, date:fDate} : e))
+      const updated = { ...editEv, name:fName, client:fClient, venue:fVenue, date:fDate }
+      setEvents(p => p.map(e => e.id===editEv.id ? updated : e))
+      saveEventToDB(updated)
     } else {
       const n = makeEvent(fName, fClient, fVenue, fDate)
-      setEvents(p => [...p, n]); setActiveId(n.id)
+      setEvents(p => [...p, n])
+      setActiveId(n.id)
+      saveEventToDB(n)
     }
     setShowModal(false)
   }
@@ -224,6 +247,12 @@ export default function EventManagementPage() {
     const rem = events.filter(e=>e.id!==id)
     setEvents(rem)
     if (activeId===id) setActiveId(rem[0]?.id||null)
+    // delete from DB
+    fetch('/api/event-management', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id }),
+    }).catch(() => {})
   }
 
   // ── Cargo CRUD ────────────────────────────────────────────────────────────
