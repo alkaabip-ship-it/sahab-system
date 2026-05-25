@@ -462,7 +462,7 @@ const en: typeof ar = {
     FIREWORKS: 'Fireworks',
     FURNITURE: 'Furniture',
     CURTAINS:  'Curtains & Drapes',
-    AV_TECH:   'AV Technician',
+    AV_TECH:   'Operator',
     OTHER: 'Other',
   },
 
