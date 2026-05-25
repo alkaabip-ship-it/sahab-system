@@ -266,6 +266,27 @@ export default function SuppliersPage() {
   const [cardPage,      setCardPage]      = useState(1)
   const CARDS_PER_PAGE = 12
 
+  // Inline serviceType quick-edit
+  const [editingId,  setEditingId]  = useState<string | null>(null)
+  const [savingId,   setSavingId]   = useState<string | null>(null)
+
+  async function quickSaveServiceType(supplierId: string, serviceType: string) {
+    setSavingId(supplierId)
+    try {
+      const res = await fetch(`/api/suppliers/${supplierId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ serviceType }),
+      })
+      if (res.ok) {
+        setSuppliers(prev => prev.map(s => s.id === supplierId ? { ...s, serviceType } : s))
+      }
+    } finally {
+      setSavingId(null)
+      setEditingId(null)
+    }
+  }
+
   async function loadSuppliers() {
     setLoading(true)
     const res  = await fetch('/api/suppliers?limit=200')
@@ -409,47 +430,84 @@ export default function SuppliersPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {paginated.map(s => (
-              <Link
-                key={s.id}
-                href={`/dashboard/suppliers/${s.id}`}
-                className="bg-white rounded-2xl border border-slate-100 shadow-sm p-5 hover:shadow-md hover:border-sky-200 transition-all block group"
-              >
-                {/* Top row */}
-                <div className="flex items-center gap-3 mb-4">
-                  <SupplierAvatar name={s.name} serviceType={s.serviceType} />
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-slate-800 truncate group-hover:text-sky-600 transition-colors">
-                      {s.name}
-                    </h3>
-                    <p className="text-xs text-slate-400 mt-0.5 flex items-center gap-1">
-                      {SERVICE_ICONS[s.serviceType]}
-                      {(t.serviceType as any)[s.serviceType] ?? s.serviceType}
-                    </p>
-                    {s.phone && <p className="text-xs text-slate-400 mt-0.5">📞 {s.phone}</p>}
-                  </div>
-                  <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 self-start ${getStatusColor(s.recommendation)}`}>
-                    {getStatusLabel(s.recommendation)}
-                  </span>
-                </div>
+              <div key={s.id} className="relative bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md hover:border-sky-200 transition-all group">
 
-                {/* Stats */}
-                <div className="grid grid-cols-2 gap-2 text-center bg-slate-50 rounded-xl p-3">
-                  <div>
-                    <p className="text-lg font-bold text-slate-800">{s.dealCount}</p>
-                    <p className="text-xs text-slate-400">{t.suppliers.bills}</p>
+                {/* Inline serviceType dropdown */}
+                {editingId === s.id && (
+                  <div
+                    className="absolute inset-0 z-20 bg-white rounded-2xl border-2 border-sky-300 p-3 overflow-y-auto"
+                    onClick={e => e.stopPropagation()}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-slate-700 truncate">{s.name}</p>
+                      <button onClick={() => setEditingId(null)} className="text-slate-400 hover:text-slate-600 text-lg leading-none flex-shrink-0">✕</button>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {SERVICE_KEYS.map(key => (
+                        <button
+                          key={key}
+                          disabled={savingId === s.id}
+                          onClick={() => quickSaveServiceType(s.id, key)}
+                          className={`flex flex-col items-center gap-0.5 py-2 px-1 rounded-xl border text-xs transition-all ${
+                            s.serviceType === key
+                              ? 'border-sky-400 bg-sky-50 text-sky-700 font-semibold'
+                              : 'border-slate-200 text-slate-500 hover:border-sky-300 hover:bg-slate-50'
+                          } ${savingId === s.id ? 'opacity-50' : ''}`}
+                        >
+                          <span>{SERVICE_ICONS[key]}</span>
+                          <span className="leading-tight text-center text-[10px]">
+                            {(t.serviceType as any)[key] ?? key}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-lg font-bold text-slate-800">{fmt(s.totalAmount)}</p>
-                    <p className="text-xs text-slate-400">{t.common.aed} {isRTL ? 'إجمالي' : 'total'}</p>
+                )}
+
+                <Link href={`/dashboard/suppliers/${s.id}`} className="block p-5">
+                  {/* Top row */}
+                  <div className="flex items-center gap-3 mb-4">
+                    <SupplierAvatar name={s.name} serviceType={s.serviceType} />
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-slate-800 truncate group-hover:text-sky-600 transition-colors">
+                        {s.name}
+                      </h3>
+                      {/* Clickable serviceType badge */}
+                      <button
+                        onClick={e => { e.preventDefault(); e.stopPropagation(); setEditingId(s.id) }}
+                        className={`mt-0.5 text-xs px-2 py-0.5 rounded-full flex items-center gap-1 transition-all hover:ring-2 hover:ring-sky-300 cursor-pointer ${SERVICE_COLORS[s.serviceType] ?? 'bg-gray-100 text-gray-700'}`}
+                        title={isRTL ? 'اضغط لتغيير نوع الخدمة' : 'Click to change service type'}
+                      >
+                        {SERVICE_ICONS[s.serviceType]}
+                        {(t.serviceType as any)[s.serviceType] ?? s.serviceType}
+                        <span className="opacity-50">✎</span>
+                      </button>
+                      {s.phone && <p className="text-xs text-slate-400 mt-0.5">📞 {s.phone}</p>}
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded-full font-medium flex-shrink-0 self-start ${getStatusColor(s.recommendation)}`}>
+                      {getStatusLabel(s.recommendation)}
+                    </span>
                   </div>
-                </div>
-              </Link>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-2 gap-2 text-center bg-slate-50 rounded-xl p-3">
+                    <div>
+                      <p className="text-lg font-bold text-slate-800">{s.dealCount}</p>
+                      <p className="text-xs text-slate-400">{t.suppliers.bills}</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-slate-800">{fmt(s.totalAmount)}</p>
+                      <p className="text-xs text-slate-400">{t.common.aed} {isRTL ? 'إجمالي' : 'total'}</p>
+                    </div>
+                  </div>
+                </Link>
+              </div>
             ))}
 
             {/* Add shortcut card */}
             <button
               onClick={() => setShowAdd(true)}
-              className="bg-white rounded-2xl border-2 border-dashed border-slate-200 hover:border-sky-300 hover:bg-sky-50 transition-all flex flex-col items-center justify-center gap-2 p-5 min-h-[200px] text-slate-400 hover:text-sky-500"
+              className="bg-white rounded-2xl border-2 border-dashed border-slate-200 hover:border-sky-300 hover:bg-sky-50 transition-all flex flex-col items-center justify-center gap-2 p-5 min-h-[160px] text-slate-400 hover:text-sky-500"
             >
               <span className="text-4xl">+</span>
               <span className="text-sm font-medium">{t.suppliers.addSupplier}</span>

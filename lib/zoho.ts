@@ -72,141 +72,127 @@ export async function syncVendors(
   orgId: string,
   token: string
 ): Promise<number> {
-  let page = 1
-  let hasMore = true
-  let synced = 0
-
+  // ── 1. Fetch ALL Zoho vendors (paginated) ────────────────────────────
+  const zohoVendors: any[] = []
+  let page = 1, hasMore = true
   while (hasMore) {
     const response = await axios.get(`${ZOHO_BASE_URL}/contacts`, {
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
-      params: {
-        organization_id: orgId,
-        contact_type: 'vendor',
-        page,
-        per_page: 200,
-      },
+      params: { organization_id: orgId, contact_type: 'vendor', page, per_page: 200 },
     })
-
-    const { contacts, page_context } = response.data
-
-    for (const vendor of contacts) {
-      const serviceType = extractServiceType(vendor)
-      await prisma.supplier.upsert({
-        where: { zohoId: vendor.contact_id },
-        update: {
-          name: vendor.contact_name,
-          phone: vendor.phone || vendor.mobile || null,
-          email: vendor.email || null,
-          serviceType,
-          updatedAt: new Date(),
-        },
-        create: {
-          zohoId: vendor.contact_id,
-          name: vendor.contact_name,
-          phone: vendor.phone || vendor.mobile || null,
-          email: vendor.email || null,
-          serviceType,
-          recommendation: 'UNDER_REVIEW',
-        },
-      })
-      synced++
-    }
-
-    hasMore = page_context?.has_more_page || false
+    zohoVendors.push(...(response.data.contacts ?? []))
+    hasMore = response.data.page_context?.has_more_page ?? false
     page++
   }
 
-  return synced
+  // ── 2. Load existing suppliers from DB ───────────────────────────────
+  const existing = await prisma.supplier.findMany({
+    select: { id: true, zohoId: true, serviceType: true },
+  })
+  const existingMap = new Map(
+    existing.filter(s => s.zohoId).map(s => [s.zohoId!, s])
+  )
+
+  // ── 3. Process each vendor ───────────────────────────────────────────
+  for (const vendor of zohoVendors) {
+    const zohoId   = vendor.contact_id
+    const existing = existingMap.get(zohoId)
+
+    // For existing vendors: NEVER overwrite serviceType — keep the manually-set value
+    // For new vendors: auto-detect serviceType from name/notes
+    const serviceType = existing ? existing.serviceType : extractServiceType(vendor)
+
+    await prisma.supplier.upsert({
+      where: { zohoId },
+      update: {
+        name:      vendor.contact_name,
+        phone:     vendor.phone || vendor.mobile || null,
+        email:     vendor.email || null,
+        // serviceType intentionally omitted — manual edits are preserved
+        updatedAt: new Date(),
+      },
+      create: {
+        zohoId,
+        name:        vendor.contact_name,
+        phone:       vendor.phone || vendor.mobile || null,
+        email:       vendor.email || null,
+        serviceType,
+        recommendation: 'UNDER_REVIEW',
+      },
+    })
+  }
+
+  return zohoVendors.length
 }
 
 export async function syncBills(
   orgId: string,
   token: string
 ): Promise<number> {
-  let page = 1
-  let hasMore = true
-  let synced = 0
-
-  const codeSourceSetting = await prisma.setting.findUnique({
-    where: { key: 'PROJECT_CODE_SOURCE' },
-  })
+  const codeSourceSetting = await prisma.setting.findUnique({ where: { key: 'PROJECT_CODE_SOURCE' } })
   const codeSource = codeSourceSetting?.value || 'custom_field'
 
+  // ── 1. Fetch ALL Zoho bills (all pages) ──────────────────────────────
+  const zohoBills: any[] = []
+  let page = 1, hasMore = true
   while (hasMore) {
-    const response = await axios.get(`${ZOHO_BASE_URL}/bills`, {
+    const res = await axios.get(`${ZOHO_BASE_URL}/bills`, {
       headers: { Authorization: `Zoho-oauthtoken ${token}` },
-      params: {
-        organization_id: orgId,
-        page,
-        per_page: 200,
-      },
+      params: { organization_id: orgId, page, per_page: 200 },
     })
-
-    const { bills, page_context } = response.data
-
-    for (const bill of bills) {
-      // Find supplier
-      let supplier = null
-      if (bill.vendor_id) {
-        supplier = await prisma.supplier.findUnique({
-          where: { zohoId: bill.vendor_id },
-        })
-      }
-
-      // Extract project code
-      const projectCode = extractProjectCode(bill, codeSource)
-
-      // Find project
-      let project = null
-      if (projectCode) {
-        project = await prisma.project.findUnique({
-          where: { code: projectCode },
-        })
-      }
-
-      const zohoId = bill.bill_id
-      const existingBill = await prisma.bill.findUnique({
-        where: { zohoId },
-      })
-
-      // Preserve existing project link if Zoho has no project code
-      const resolvedProjectId = project?.id || (projectCode ? null : existingBill?.projectId) || null
-      const resolvedIsLinked  = !!resolvedProjectId
-
-      const billData = {
-        billNumber: bill.bill_number,
-        supplierId: supplier?.id || null,
-        projectId: resolvedProjectId,
-        amount: parseFloat(bill.total) || 0,
-        billDate: new Date(bill.date),
-        dueDate: bill.due_date ? new Date(bill.due_date) : null,
-        status: mapBillStatus(bill.status),
-        projectCode: projectCode || existingBill?.projectCode || null,
-        isLinked: resolvedIsLinked,
-        updatedAt: new Date(),
-      }
-
-      if (existingBill) {
-        await prisma.bill.update({
-          where: { zohoId },
-          data: billData,
-        })
-      } else {
-        await prisma.bill.create({
-          data: {
-            zohoId,
-            ...billData,
-          },
-        })
-      }
-      synced++
-    }
-
-    hasMore = page_context?.has_more_page || false
+    zohoBills.push(...(res.data.bills ?? []))
+    hasMore = res.data.page_context?.has_more_page ?? false
     page++
   }
 
-  return synced
+  // ── 2. Load reference data in bulk ───────────────────────────────────
+  const [allSuppliers, allProjects, existingBills] = await Promise.all([
+    prisma.supplier.findMany({ select: { id: true, zohoId: true } }),
+    prisma.project.findMany({ select: { id: true, code: true } }),
+    prisma.bill.findMany({ select: { id: true, zohoId: true, projectId: true, projectCode: true } }),
+  ])
+
+  const supplierMap = new Map(allSuppliers.filter(s => s.zohoId).map(s => [s.zohoId!, s.id]))
+  const projectMap  = new Map(allProjects.map(p => [p.code, p.id]))
+  const billMap     = new Map(existingBills.filter(b => b.zohoId).map(b => [b.zohoId!, b]))
+
+  // ── 3. Process in memory ─────────────────────────────────────────────
+  const toCreate: any[] = []
+  const toUpdate: any[] = []
+
+  for (const bill of zohoBills) {
+    const zohoId      = bill.bill_id
+    const projectCode = extractProjectCode(bill, codeSource)
+    const existing    = billMap.get(zohoId)
+    const projectId   = (projectCode ? projectMap.get(projectCode) : null)
+                        || (!projectCode ? existing?.projectId : null)
+                        || null
+
+    const data = {
+      billNumber:  bill.bill_number,
+      supplierId:  supplierMap.get(bill.vendor_id) || null,
+      projectId,
+      amount:      parseFloat(bill.total) || 0,
+      billDate:    new Date(bill.date + 'T12:00:00'),
+      dueDate:     bill.due_date ? new Date(bill.due_date + 'T12:00:00') : null,
+      status:      mapBillStatus(bill.status),
+      projectCode: projectCode || existing?.projectCode || null,
+      isLinked:    !!projectId,
+    }
+
+    if (existing) toUpdate.push({ zohoId, data })
+    else          toCreate.push({ zohoId, ...data })
+  }
+
+  // ── 4. Bulk DB writes ────────────────────────────────────────────────
+  if (toCreate.length > 0) {
+    await prisma.bill.createMany({ data: toCreate, skipDuplicates: true })
+  }
+  for (const { zohoId, data } of toUpdate) {
+    await prisma.bill.update({ where: { zohoId }, data })
+  }
+
+  return zohoBills.length
 }
 
 export async function linkBillsToProjects(): Promise<number> {
@@ -247,9 +233,88 @@ export async function recalculateAllSupplierRecommendations(): Promise<void> {
   }
 }
 
+export async function syncInvoices(
+  orgId: string,
+  token: string
+): Promise<number> {
+  // ── 1. Fetch ALL Zoho invoices (all pages) ────────────────────────────
+  const zohoInvoices: any[] = []
+  let page = 1, hasMore = true
+  while (hasMore) {
+    const res = await axios.get(`${ZOHO_BASE_URL}/invoices`, {
+      headers: { Authorization: `Zoho-oauthtoken ${token}` },
+      params: { organization_id: orgId, page, per_page: 200 },
+    })
+    zohoInvoices.push(...(res.data.invoices ?? []))
+    hasMore = res.data.page_context?.has_more_page ?? false
+    page++
+  }
+
+  // ── 2. Load reference data in bulk ───────────────────────────────────
+  const [allProjects, existingInvoices] = await Promise.all([
+    prisma.project.findMany({ select: { id: true, clientName: true } }),
+    prisma.invoice.findMany({ select: { id: true, zohoId: true, invoiceNumber: true, projectId: true } }),
+  ])
+
+  const projectByClient = new Map(allProjects.map(p => [p.clientName.toLowerCase().trim(), p.id]))
+  const invByZoho  = new Map(existingInvoices.filter(i => i.zohoId).map(i => [i.zohoId!, i]))
+  const invByNum   = new Map(existingInvoices.map(i => [i.invoiceNumber, i]))
+
+  // ── 3. Process in memory ─────────────────────────────────────────────
+  const toCreate: any[] = []
+  const toUpdate: any[] = []
+
+  for (const inv of zohoInvoices) {
+    const status = mapInvoiceStatus(inv.status)
+    if (status === 'VOID') continue
+
+    const zohoId        = inv.invoice_id
+    const invoiceNumber = inv.invoice_number
+    const customerName  = inv.customer_name || ''
+    const amount        = parseFloat(inv.total)   || 0
+    const balance       = parseFloat(inv.balance) || 0
+    const invoiceDate   = new Date(inv.date + 'T12:00:00')
+    const dueDate       = inv.due_date ? new Date(inv.due_date + 'T12:00:00') : null
+    const projectId     = projectByClient.get(customerName.toLowerCase().trim()) || null
+
+    const existing = invByZoho.get(zohoId) ?? invByNum.get(invoiceNumber)
+
+    if (existing) {
+      toUpdate.push({
+        id: existing.id,
+        data: { zohoId, customerName, amount, balance, invoiceDate, dueDate, status,
+                projectId: projectId || existing.projectId || null },
+      })
+    } else {
+      toCreate.push({ zohoId, invoiceNumber, customerName, amount, balance, invoiceDate, dueDate, status, projectId })
+    }
+  }
+
+  // ── 4. Bulk DB writes ────────────────────────────────────────────────
+  if (toCreate.length > 0) {
+    await prisma.invoice.createMany({ data: toCreate, skipDuplicates: true })
+  }
+  for (const { id, data } of toUpdate) {
+    await prisma.invoice.update({ where: { id }, data })
+  }
+
+  return zohoInvoices.length
+}
+
+function mapInvoiceStatus(zohoStatus: string): string {
+  switch (zohoStatus?.toLowerCase()) {
+    case 'paid':     return 'PAID'
+    case 'void':     return 'VOID'
+    case 'partial':
+    case 'partially_paid': return 'PARTIAL'
+    default:         return 'UNPAID'
+  }
+}
+
 export async function fullSync(): Promise<{
   vendors: number
   bills: number
+  invoices: number
   linked: number
 }> {
   const dbOrg = await prisma.setting.findUnique({ where: { key: 'ZOHO_ORGANIZATION_ID' } })
@@ -258,9 +323,10 @@ export async function fullSync(): Promise<{
 
   const token = await getAccessToken()
 
-  const vendors = await syncVendors(orgId, token)
-  const bills = await syncBills(orgId, token)
-  const linked = await linkBillsToProjects()
+  const vendors  = await syncVendors(orgId, token)
+  const bills    = await syncBills(orgId, token)
+  const invoices = await syncInvoices(orgId, token)
+  const linked   = await linkBillsToProjects()
   await recalculateAllSupplierRecommendations()
 
   await prisma.setting.upsert({
@@ -273,12 +339,12 @@ export async function fullSync(): Promise<{
     data: {
       syncType: 'FULL',
       status: 'SUCCESS',
-      message: `تمت المزامنة: ${vendors} مورد، ${bills} فاتورة، ${linked} مرتبطة`,
-      itemsSynced: vendors + bills,
+      message: `تمت المزامنة: ${vendors} مورد، ${bills} فاتورة شراء، ${invoices} فاتورة مبيعات، ${linked} مرتبطة`,
+      itemsSynced: vendors + bills + invoices,
     },
   })
 
-  return { vendors, bills, linked }
+  return { vendors, bills, invoices, linked }
 }
 
 function extractProjectCode(bill: any, source: string): string | null {
