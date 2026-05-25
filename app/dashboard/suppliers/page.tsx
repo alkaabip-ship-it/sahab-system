@@ -12,6 +12,7 @@ import {
   HiBuildingOffice2, HiHome, HiScissors, HiCog6Tooth,
   HiCpuChip, HiDeviceTablet, HiArchiveBox, HiTrophy,
   HiShieldCheck, HiKey, HiMusicalNote, HiBolt, HiUserCircle,
+  HiHomeModern, HiWrenchScrewdriver,
 } from 'react-icons/hi2'
 import Pagination from '@/components/Pagination'
 
@@ -42,6 +43,8 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   ENTERTAINMENT:  <HiMusicalNote size={14} />,
   GENERATORS:     <HiBolt size={14} />,
   RECEPTION:      <HiUserCircle size={14} />,
+  TENTS:          <HiHomeModern size={14} />,
+  SCAFFOLDING:    <HiWrenchScrewdriver size={14} />,
   OTHER:          <HiCube size={14} />,
 }
 
@@ -49,7 +52,8 @@ const SERVICE_KEYS = [
   'SCREENS','AUDIO','LIGHTING','PRINTING','CARPET','CARPENTRY',
   'FLOWERS','HOSPITALITY','PHOTOGRAPHY','VIDEO','LABOR','TRANSPORT','FIREWORKS',
   'FURNITURE','CURTAINS','AV_TECH','TECH_AI','TECH_RENTAL','CLEANING',
-  'GIFTS','SECURITY','VALET','ENTERTAINMENT','GENERATORS','RECEPTION','OTHER',
+  'GIFTS','SECURITY','VALET','ENTERTAINMENT','GENERATORS','RECEPTION',
+  'TENTS','SCAFFOLDING','OTHER',
 ]
 
 const SERVICE_COLORS: Record<string, string> = {
@@ -78,6 +82,8 @@ const SERVICE_COLORS: Record<string, string> = {
   ENTERTAINMENT: 'bg-orange-200 text-orange-800',
   GENERATORS:    'bg-yellow-200 text-yellow-800',
   RECEPTION:     'bg-rose-200 text-rose-800',
+  TENTS:         'bg-lime-100 text-lime-800',
+  SCAFFOLDING:   'bg-neutral-200 text-neutral-800',
   OTHER:         'bg-gray-100 text-gray-700',
 }
 

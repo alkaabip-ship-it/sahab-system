@@ -93,6 +93,8 @@ const ar = {
     ENTERTAINMENT: 'ترفيه',
     GENERATORS:    'مولدات كهربائية',
     RECEPTION:     'خدمة الاستقبال',
+    TENTS:         'خيم',
+    SCAFFOLDING:   'رافعات',
     OTHER: 'أخرى',
   },
 
@@ -481,6 +483,8 @@ const en: typeof ar = {
     ENTERTAINMENT: 'Entertainment',
     GENERATORS:    'Generators',
     RECEPTION:     'Reception Service',
+    TENTS:         'Tents',
+    SCAFFOLDING:   'Scaffolding',
     OTHER: 'Other',
   },
 
