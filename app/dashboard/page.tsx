@@ -36,7 +36,14 @@ function getVatDeadlineInfo() {
   return upcoming || null
 }
 
-/** Rent contract info — computed from DB CompanyExpense.RENT */
+/** Rent contract info — fixed payment dates from signed contract THA/OFFIC/0037/2025 */
+const RENT_PAYMENTS = [
+  { label: 'الدفعة الأولى',  date: new Date(2025, 9,  13), amount: 6867 }, // 13 Oct 2025
+  { label: 'الدفعة الثانية', date: new Date(2026, 0,  13), amount: 6867 }, // 13 Jan 2026
+  { label: 'الدفعة الثالثة',date: new Date(2026, 3,  13), amount: 6867 }, // 13 Apr 2026
+  { label: 'الدفعة الرابعة',date: new Date(2026, 6,  13), amount: 6867 }, // 13 Jul 2026
+]
+
 function getRentInfo(rentExpense: any) {
   const now = new Date()
   const daysLeft = (d: Date) => Math.ceil((d.getTime() - now.getTime()) / 86400000)
@@ -48,18 +55,7 @@ function getRentInfo(rentExpense: any) {
   const annualAmount  = rentExpense.amount ?? 0
   const quarterly     = Math.round(annualAmount / 4)
 
-  // Compute 4 quarterly payment dates from contract start (= contractEnd - 1 year)
-  const contractStart = new Date(contractEnd)
-  contractStart.setFullYear(contractStart.getFullYear() - 1)
-
-  const paymentDates: Date[] = []
-  for (let i = 0; i < 4; i++) {
-    const d = new Date(contractStart)
-    d.setMonth(d.getMonth() + i * 3)
-    paymentDates.push(d)
-  }
-
-  const nextPaymentDate = paymentDates.find(d => daysLeft(d) > 0) ?? null
+  const nextPayment = RENT_PAYMENTS.find(p => daysLeft(p.date) > 0) ?? null
 
   return {
     contractEnd,
@@ -68,8 +64,8 @@ function getRentInfo(rentExpense: any) {
     renewalNoticeDays:  daysLeft(renewalNotice),
     annualAmount,
     quarterly,
-    nextPaymentDate,
-    nextPaymentDays:    nextPaymentDate ? daysLeft(nextPaymentDate) : null,
+    nextPayment,
+    nextPaymentDays:    nextPayment ? daysLeft(nextPayment.date) : null,
   }
 }
 
@@ -357,34 +353,53 @@ export default function DashboardPage() {
                 )}
               </div>
 
-              {/* Contract expiry */}
+              {/* Next payment due date */}
               <div className={`rounded-xl p-3 border ${
-                rentInfo.contractEndDays <= 30  ? 'bg-red-50 border-red-200'
-                : rentInfo.contractEndDays <= 90 ? 'bg-amber-50 border-amber-200'
-                : 'bg-slate-50 border-slate-200'
+                !rentInfo.nextPayment
+                  ? 'bg-green-50 border-green-200'
+                  : rentInfo.nextPaymentDays! <= 7
+                  ? 'bg-red-50 border-red-200'
+                  : rentInfo.nextPaymentDays! <= 30
+                  ? 'bg-amber-50 border-amber-200'
+                  : 'bg-slate-50 border-slate-200'
               }`}>
                 <div className="flex items-center gap-1.5 mb-2">
-                  <HiCalendarDays size={14} className={
-                    rentInfo.contractEndDays <= 30 ? 'text-red-600'
-                    : rentInfo.contractEndDays <= 90 ? 'text-amber-600' : 'text-slate-500'
+                  <HiKey size={14} className={
+                    !rentInfo.nextPayment ? 'text-green-600'
+                    : rentInfo.nextPaymentDays! <= 7  ? 'text-red-600'
+                    : rentInfo.nextPaymentDays! <= 30 ? 'text-amber-600'
+                    : 'text-slate-500'
                   } />
                   <p className={`text-xs font-semibold ${
-                    rentInfo.contractEndDays <= 30 ? 'text-red-700'
-                    : rentInfo.contractEndDays <= 90 ? 'text-amber-700' : 'text-slate-600'
-                  }`}>انتهاء العقد</p>
+                    !rentInfo.nextPayment ? 'text-green-700'
+                    : rentInfo.nextPaymentDays! <= 7  ? 'text-red-700'
+                    : rentInfo.nextPaymentDays! <= 30 ? 'text-amber-700'
+                    : 'text-slate-600'
+                  }`}>تاريخ الاستحقاق</p>
                 </div>
-                <p className={`text-xl font-black ${
-                  rentInfo.contractEndDays <= 30 ? 'text-red-600'
-                  : rentInfo.contractEndDays <= 90 ? 'text-amber-600' : 'text-slate-700'
-                }`}>
-                  {rentInfo.contractEndDays > 0 ? rentInfo.contractEndDays : Math.abs(rentInfo.contractEndDays)}
-                  <span className="text-xs font-normal mr-1">
-                    {rentInfo.contractEndDays > 0 ? 'يوم متبقي' : 'يوم مضى'}
-                  </span>
-                </p>
-                <p className="text-xs text-slate-500 mt-1">
-                  {rentInfo.contractEnd.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })}
-                </p>
+                {rentInfo.nextPayment ? (
+                  <>
+                    <p className={`text-lg font-black leading-tight ${
+                      rentInfo.nextPaymentDays! <= 7  ? 'text-red-600'
+                      : rentInfo.nextPaymentDays! <= 30 ? 'text-amber-600'
+                      : 'text-slate-700'
+                    }`}>
+                      {rentInfo.nextPayment.date.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long' })}
+                    </p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      {rentInfo.nextPayment.date.getFullYear()}
+                    </p>
+                    <p className={`text-xs font-bold mt-1 ${
+                      rentInfo.nextPaymentDays! <= 7  ? 'text-red-600'
+                      : rentInfo.nextPaymentDays! <= 30 ? 'text-amber-600'
+                      : 'text-slate-500'
+                    }`}>
+                      {rentInfo.nextPayment.label} · بعد {rentInfo.nextPaymentDays} يوم
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm font-bold text-green-700">تم سداد جميع الدفعات ✓</p>
+                )}
               </div>
 
               {/* Renewal notice deadline */}
