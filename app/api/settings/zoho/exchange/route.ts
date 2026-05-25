@@ -24,32 +24,78 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Try without redirect_uri first (works for Self-Client codes)
     const response = await axios.post('https://accounts.zoho.com/oauth/v2/token', null, {
       params: {
         code,
         client_id: clientId,
         client_secret: clientSecret,
         grant_type: 'authorization_code',
-        redirect_uri: 'https://zohoapis.com',
       },
     })
 
-    const { refresh_token, error } = response.data
+    const { refresh_token, access_token, expires_in, error } = response.data
 
-    if (!refresh_token) {
+    if (error) {
       return NextResponse.json(
-        { error: `Zoho error: ${error || JSON.stringify(response.data)}` },
+        { error: `Zoho رفض الكود: ${error} — تأكد أن الكود لم ينتهِ (مدة صلاحيته دقيقتان)` },
         { status: 400 }
       )
     }
 
-    await prisma.setting.upsert({
-      where: { key: 'ZOHO_REFRESH_TOKEN' },
-      update: { value: refresh_token },
-      create: { key: 'ZOHO_REFRESH_TOKEN', value: refresh_token },
-    })
+    const now = Date.now()
 
-    return NextResponse.json({ refresh_token })
+    // If we got a refresh_token — ideal case, save it
+    if (refresh_token) {
+      await Promise.all([
+        prisma.setting.upsert({
+          where: { key: 'ZOHO_REFRESH_TOKEN' },
+          update: { value: refresh_token },
+          create: { key: 'ZOHO_REFRESH_TOKEN', value: refresh_token },
+        }),
+        access_token
+          ? prisma.setting.upsert({
+              where: { key: 'ZOHO_ACCESS_TOKEN' },
+              update: { value: access_token },
+              create: { key: 'ZOHO_ACCESS_TOKEN', value: access_token },
+            })
+          : Promise.resolve(),
+        access_token && expires_in
+          ? prisma.setting.upsert({
+              where: { key: 'ZOHO_TOKEN_EXPIRES_AT' },
+              update: { value: String(now + expires_in * 1000) },
+              create: { key: 'ZOHO_TOKEN_EXPIRES_AT', value: String(now + expires_in * 1000) },
+            })
+          : Promise.resolve(),
+      ])
+      return NextResponse.json({ refresh_token })
+    }
+
+    // Only got access_token — save it temporarily so sync works for next hour
+    if (access_token) {
+      await Promise.all([
+        prisma.setting.upsert({
+          where: { key: 'ZOHO_ACCESS_TOKEN' },
+          update: { value: access_token },
+          create: { key: 'ZOHO_ACCESS_TOKEN', value: access_token },
+        }),
+        prisma.setting.upsert({
+          where: { key: 'ZOHO_TOKEN_EXPIRES_AT' },
+          update: { value: String(now + (expires_in ?? 3600) * 1000) },
+          create: { key: 'ZOHO_TOKEN_EXPIRES_AT', value: String(now + (expires_in ?? 3600) * 1000) },
+        }),
+      ])
+      return NextResponse.json({
+        access_token_only: true,
+        message:
+          'تم حفظ Access Token مؤقتاً (صالح لمدة ساعة). للحصول على Refresh Token دائم: استخدم Self Client في https://api-console.zoho.com وأنشئ كوداً بنطاق ZohoBooks.fullaccess.all',
+      })
+    }
+
+    return NextResponse.json(
+      { error: 'لم يُرجع Zoho أي Token — تحقق من Client ID و Client Secret' },
+      { status: 400 }
+    )
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.response?.data?.error || err?.message || 'فشل الاتصال بـ Zoho' },

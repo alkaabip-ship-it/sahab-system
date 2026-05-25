@@ -28,7 +28,7 @@ export default function SettingsPage() {
   const [crmMsg, setCrmMsg]             = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [authCode, setAuthCode]       = useState('')
   const [exchanging, setExchanging]   = useState(false)
-  const [exchangeMsg, setExchangeMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [exchangeMsg, setExchangeMsg] = useState<{ type: 'success' | 'error' | 'warning'; text: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/settings/zoho')
@@ -59,9 +59,14 @@ export default function SettingsPage() {
       })
       const d = await res.json()
       if (res.ok) {
-        setZoho(p => ({ ...p, ZOHO_REFRESH_TOKEN: d.refresh_token }))
-        setAuthCode('')
-        setExchangeMsg({ type: 'success', text: '✓ تم الحصول على Refresh Token وحفظه تلقائياً' })
+        if (d.refresh_token) {
+          setZoho(p => ({ ...p, ZOHO_REFRESH_TOKEN: d.refresh_token }))
+          setAuthCode('')
+          setExchangeMsg({ type: 'success', text: '✓ تم الحصول على Refresh Token الدائم وحفظه تلقائياً' })
+        } else if (d.access_token_only) {
+          setAuthCode('')
+          setExchangeMsg({ type: 'warning', text: d.message })
+        }
       } else {
         setExchangeMsg({ type: 'error', text: d.error || 'فشل التحويل' })
       }
@@ -132,7 +137,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="max-w-2xl space-y-6">
+    <div className="max-w-2xl w-full space-y-6">
       <h2 className="text-xl font-bold text-slate-800">{t.settings.title}</h2>
 
       {/* App Settings */}
@@ -229,29 +234,40 @@ export default function SettingsPage() {
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
               <p className="text-xs font-semibold text-blue-700">ربط مع Zoho Books</p>
 
-              {/* Step 1: Open authorization URL */}
+              {/* Step 1: Open Self-Client */}
               <div>
                 <p className="text-xs text-blue-600 mb-2">
-                  <strong>الخطوة 1:</strong> اضغط الزر لفتح صفحة التفويض في Zoho، ثم اضغط <strong>Accept</strong>
+                  <strong>الخطوة 1:</strong> افتح Zoho API Console واختر <strong>Self Client</strong> ثم <strong>Generate Code</strong>
                 </p>
-                <button
-                  onClick={() => {
-                    const clientId = zoho.ZOHO_CLIENT_ID.trim()
-                    if (!clientId) { alert('أدخل Client ID أولاً واحفظه'); return }
-                    const url = `https://accounts.zoho.com/oauth/v2/auth?scope=ZohoBooks.fullaccess.all&client_id=${clientId}&response_type=code&redirect_uri=https://zohoapis.com&access_type=offline`
-                    window.open(url, '_blank')
-                  }}
-                  disabled={!zoho.ZOHO_CLIENT_ID.trim()}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 text-white text-xs font-semibold rounded-lg transition-all"
-                >
-                  فتح صفحة Zoho للتفويض ↗
-                </button>
+                <div className="flex gap-2 flex-wrap">
+                  <button
+                    onClick={() => window.open('https://api-console.zoho.com/', '_blank')}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg transition-all"
+                  >
+                    فتح Zoho API Console ↗
+                  </button>
+                  <button
+                    onClick={() => {
+                      const clientId = zoho.ZOHO_CLIENT_ID.trim()
+                      if (!clientId) { alert('أدخل Client ID أولاً واحفظه'); return }
+                      const url = `https://accounts.zoho.com/oauth/v2/auth?scope=ZohoBooks.fullaccess.all&client_id=${clientId}&response_type=code&redirect_uri=https://zohoapis.com&access_type=offline`
+                      window.open(url, '_blank')
+                    }}
+                    disabled={!zoho.ZOHO_CLIENT_ID.trim()}
+                    className="px-4 py-2 bg-slate-500 hover:bg-slate-600 disabled:bg-slate-300 text-white text-xs font-semibold rounded-lg transition-all"
+                  >
+                    أو: OAuth Redirect ↗
+                  </button>
+                </div>
               </div>
 
-              {/* Step 2: Copy code from URL */}
-              <div className="bg-white border border-blue-100 rounded-lg p-3">
-                <p className="text-xs text-blue-700 font-medium mb-1">الخطوة 2: انسخ الكود من URL المتصفح</p>
-                <p className="text-xs text-slate-500">بعد الموافقة، سيظهر خطأ في المتصفح. انظر لشريط العنوان وانسخ قيمة <span className="font-mono bg-slate-100 px-1">?code=</span></p>
+              {/* Step 2: Instructions */}
+              <div className="bg-white border border-blue-100 rounded-lg p-3 space-y-1">
+                <p className="text-xs text-blue-700 font-medium">الخطوة 2: في Self Client</p>
+                <p className="text-xs text-slate-500">• اختر <strong>Generate Code</strong></p>
+                <p className="text-xs text-slate-500">• النطاق: <span className="font-mono bg-slate-100 px-1">ZohoBooks.fullaccess.all</span></p>
+                <p className="text-xs text-slate-500">• المدة: <strong>10 minutes</strong></p>
+                <p className="text-xs text-slate-500">• انسخ الكود الظاهر (يبدأ بـ <span className="font-mono bg-slate-100 px-1">1000.</span>)</p>
               </div>
 
               {/* Step 3: Paste and convert */}
@@ -273,9 +289,13 @@ export default function SettingsPage() {
               </div>
 
               {exchangeMsg && (
-                <p className={`text-xs ${exchangeMsg.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>
+                <div className={`text-xs p-2 rounded-lg ${
+                  exchangeMsg.type === 'success' ? 'bg-green-50 text-green-700' :
+                  exchangeMsg.type === 'warning' ? 'bg-amber-50 text-amber-800 border border-amber-200' :
+                  'bg-red-50 text-red-700'
+                }`}>
                   {exchangeMsg.text}
-                </p>
+                </div>
               )}
             </div>
 
