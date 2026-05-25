@@ -6,8 +6,8 @@ import Anthropic from '@anthropic-ai/sdk'
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 const SIGNATURE = {
-  ar: '\n\n--\nسحاب لإدارة التسويق والفعاليات\ninfo@sahabm.com\n0565252325',
-  en: '\n\n--\nSahab Marketing & Events Management\ninfo@sahabm.com\n0565252325',
+  ar: '\n\n--\nسحاب لإدارة التسويق والفعاليات\ninfo@sahabm.com\n0562522325',
+  en: '\n\n--\nSahab Marketing & Events Management\ninfo@sahabm.com\n0562522325',
 }
 
 const COMPANY = {
@@ -71,10 +71,15 @@ export async function POST(req: NextRequest) {
   const tpl = TEMPLATES[template as keyof typeof TEMPLATES]
   if (!tpl) return NextResponse.json({ error: 'قالب غير معروف' }, { status: 400 })
 
+  const systemPrompt = lang === 'en'
+    ? 'You are a professional business email writer. You MUST write ONLY in English, regardless of any Arabic text in the user input. Never switch to Arabic under any circumstance.'
+    : 'أنت كاتب رسائل أعمال محترف. اكتب الرسالة باللغة العربية الفصحى فقط.'
+
   try {
     const message = await client.messages.create({
       model: 'claude-opus-4-7',
       max_tokens: 700,
+      system: systemPrompt,
       messages: [{ role: 'user', content: tpl[lang].prompt(projectName || '', description || '') }],
     })
 
