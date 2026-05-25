@@ -93,8 +93,8 @@ export async function syncVendors(
     existing.filter(s => s.zohoId).map(s => [s.zohoId!, s])
   )
 
-  // ── 3. Batch upsert all vendors in one transaction ──────────────────
-  const ops = zohoVendors.map(vendor => {
+  // ── 3. Upsert all vendors sequentially (PgBouncer-safe) ─────────────
+  for (const vendor of zohoVendors) {
     const zohoId      = vendor.contact_id
     const prev        = existingMap.get(zohoId)
     const serviceType = prev ? prev.serviceType : extractServiceType(vendor)
@@ -102,7 +102,7 @@ export async function syncVendors(
     const zohoPhone   = vendor.phone || vendor.mobile || null
     const zohoEmail   = vendor.email || null
 
-    return prisma.supplier.upsert({
+    await prisma.supplier.upsert({
       where: { zohoId },
       update: {
         ...(zohoName  ? { name:  zohoName  } : {}),
@@ -119,8 +119,7 @@ export async function syncVendors(
         recommendation: 'UNDER_REVIEW',
       },
     })
-  })
-  await prisma.$transaction(ops)
+  }
 
   return zohoVendors.length
 }
@@ -142,25 +141,26 @@ export async function syncCustomers(
     page++
   }
 
-  // ── 2. Batch upsert all customers in one transaction ────────────────
-  const ops = zohoCustomers.map(c => prisma.customer.upsert({
-    where: { zohoId: c.contact_id },
-    update: {
-      name:    c.contact_name,
-      phone:   c.phone || c.mobile || null,
-      email:   c.email || null,
-      company: c.company_name || null,
-      updatedAt: new Date(),
-    },
-    create: {
-      zohoId:  c.contact_id,
-      name:    c.contact_name,
-      phone:   c.phone || c.mobile || null,
-      email:   c.email || null,
-      company: c.company_name || null,
-    },
-  }))
-  await prisma.$transaction(ops)
+  // ── 2. Upsert all customers sequentially (PgBouncer-safe) ───────────
+  for (const c of zohoCustomers) {
+    await prisma.customer.upsert({
+      where: { zohoId: c.contact_id },
+      update: {
+        name:    c.contact_name,
+        phone:   c.phone || c.mobile || null,
+        email:   c.email || null,
+        company: c.company_name || null,
+        updatedAt: new Date(),
+      },
+      create: {
+        zohoId:  c.contact_id,
+        name:    c.contact_name,
+        phone:   c.phone || c.mobile || null,
+        email:   c.email || null,
+        company: c.company_name || null,
+      },
+    })
+  }
 
   return zohoCustomers.length
 }
@@ -224,15 +224,13 @@ export async function syncBills(
     else          toCreate.push({ zohoId, ...data })
   }
 
-  // ── 4. Bulk DB writes ────────────────────────────────────────────────
-  const billOps: any[] = []
+  // ── 4. Bulk DB writes (PgBouncer-safe) ──────────────────────────────
   if (toCreate.length > 0) {
-    billOps.push(prisma.bill.createMany({ data: toCreate, skipDuplicates: true }))
+    await prisma.bill.createMany({ data: toCreate, skipDuplicates: true })
   }
   for (const { zohoId, data } of toUpdate) {
-    billOps.push(prisma.bill.update({ where: { zohoId }, data }))
+    await prisma.bill.update({ where: { zohoId }, data })
   }
-  if (billOps.length > 0) await prisma.$transaction(billOps)
 
   // ── 5. Delete bills removed in Zoho ─────────────────────────────────
   const zohoBillIdSet = new Set(zohoBills.map(b => b.bill_id))
@@ -347,15 +345,13 @@ export async function syncInvoices(
     }
   }
 
-  // ── 4. Bulk DB writes ────────────────────────────────────────────────
-  const invOps: any[] = []
+  // ── 4. Bulk DB writes (PgBouncer-safe) ──────────────────────────────
   if (toCreate.length > 0) {
-    invOps.push(prisma.invoice.createMany({ data: toCreate, skipDuplicates: true }))
+    await prisma.invoice.createMany({ data: toCreate, skipDuplicates: true })
   }
   for (const { id, data } of toUpdate) {
-    invOps.push(prisma.invoice.update({ where: { id }, data }))
+    await prisma.invoice.update({ where: { id }, data })
   }
-  if (invOps.length > 0) await prisma.$transaction(invOps)
 
   // ── 5. Delete invoices removed in Zoho ──────────────────────────────
   const zohoInvIdSet = new Set(zohoInvoices.map(i => i.invoice_id))
