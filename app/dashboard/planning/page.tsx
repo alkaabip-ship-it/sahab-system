@@ -27,6 +27,7 @@ export default function PlanningPage() {
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null)
   const [saving,        setSaving]        = useState(false)
   const [savedMsg,      setSavedMsg]      = useState(false)
+  const [editingNotes,  setEditingNotes]  = useState<string | null>(null)
 
   // Derived financials
   const sale     = typeof saleValue === 'number' ? saleValue : 0
@@ -73,6 +74,9 @@ export default function PlanningPage() {
   }
 
   function removeItem(id: string) { setItems(prev => prev.filter(i => i.id !== id)) }
+  function updateNotes(id: string, notes: string) {
+    setItems(prev => prev.map(i => i.id === id ? { ...i, notes: notes.trim() || undefined } : i))
+  }
 
   async function handleSave() {
     if (!projectName.trim()) return alert(isRTL ? 'أدخل اسم التخطيط أولاً' : 'Please enter a plan name first')
@@ -462,8 +466,27 @@ export default function PlanningPage() {
                         <td className="px-5 py-3.5 text-slate-400 text-xs tabular-nums">{idx + 1}</td>
                         <td className="px-5 py-3.5">
                           <p className="font-medium text-slate-800 leading-snug">{item.name}</p>
-                          {item.notes && (
-                            <p className="text-xs text-slate-400 mt-0.5 leading-snug">{item.notes}</p>
+                          {editingNotes === item.id ? (
+                            <input
+                              autoFocus
+                              defaultValue={item.notes ?? ''}
+                              onBlur={e => { updateNotes(item.id, e.target.value); setEditingNotes(null) }}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter') { updateNotes(item.id, (e.target as HTMLInputElement).value); setEditingNotes(null) }
+                                if (e.key === 'Escape') setEditingNotes(null)
+                              }}
+                              placeholder={p.notesPlaceholder}
+                              className="mt-1 w-full text-xs border border-sky-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-400 text-slate-600 placeholder:text-slate-300"
+                            />
+                          ) : (
+                            <p
+                              onClick={() => setEditingNotes(item.id)}
+                              className={`text-xs mt-0.5 leading-snug cursor-text rounded px-1 -mx-1 py-0.5 transition-colors hover:bg-slate-100 ${
+                                item.notes ? 'text-slate-400' : 'text-slate-200 opacity-0 group-hover:opacity-100'
+                              }`}
+                            >
+                              {item.notes ?? p.notesPlaceholder}
+                            </p>
                           )}
                         </td>
                         <td className="px-5 py-3.5">
