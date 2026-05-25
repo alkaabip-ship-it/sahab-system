@@ -95,6 +95,7 @@ const ar = {
     RECEPTION:     'خدمة الاستقبال',
     TENTS:         'خيم',
     SCAFFOLDING:   'رافعات',
+    REGISTRATION:  'التسجيل وتذاكر',
     OTHER: 'أخرى',
   },
 
@@ -487,6 +488,7 @@ const en: typeof ar = {
     RECEPTION:     'Reception Service',
     TENTS:         'Tents',
     SCAFFOLDING:   'Scaffolding',
+    REGISTRATION:  'Registration & Ticketing',
     OTHER: 'Other',
   },
 

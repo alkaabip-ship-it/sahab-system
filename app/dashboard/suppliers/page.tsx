@@ -12,7 +12,7 @@ import {
   HiBuildingOffice2, HiHome, HiScissors, HiCog6Tooth,
   HiCpuChip, HiDeviceTablet, HiArchiveBox, HiTrophy,
   HiShieldCheck, HiKey, HiMusicalNote, HiBolt, HiUserCircle,
-  HiHomeModern, HiWrenchScrewdriver,
+  HiHomeModern, HiWrenchScrewdriver, HiTicket,
 } from 'react-icons/hi2'
 import Pagination from '@/components/Pagination'
 
@@ -45,6 +45,7 @@ const SERVICE_ICONS: Record<string, React.ReactNode> = {
   RECEPTION:      <HiUserCircle size={14} />,
   TENTS:          <HiHomeModern size={14} />,
   SCAFFOLDING:    <HiWrenchScrewdriver size={14} />,
+  REGISTRATION:   <HiTicket size={14} />,
   OTHER:          <HiCube size={14} />,
 }
 
@@ -53,7 +54,7 @@ const SERVICE_KEYS = [
   'FLOWERS','HOSPITALITY','PHOTOGRAPHY','VIDEO','LABOR','TRANSPORT','FIREWORKS',
   'FURNITURE','CURTAINS','AV_TECH','TECH_AI','TECH_RENTAL','CLEANING',
   'GIFTS','SECURITY','VALET','ENTERTAINMENT','GENERATORS','RECEPTION',
-  'TENTS','SCAFFOLDING','OTHER',
+  'TENTS','SCAFFOLDING','REGISTRATION','OTHER',
 ]
 
 const SERVICE_COLORS: Record<string, string> = {
@@ -84,6 +85,7 @@ const SERVICE_COLORS: Record<string, string> = {
   RECEPTION:     'bg-rose-200 text-rose-800',
   TENTS:         'bg-lime-100 text-lime-800',
   SCAFFOLDING:   'bg-neutral-200 text-neutral-800',
+  REGISTRATION:  'bg-indigo-100 text-indigo-800',
   OTHER:         'bg-gray-100 text-gray-700',
 }
 
