@@ -93,29 +93,21 @@ export async function syncVendors(
     existing.filter(s => s.zohoId).map(s => [s.zohoId!, s])
   )
 
-  // ── 3. Process each vendor ───────────────────────────────────────────
-  for (const vendor of zohoVendors) {
-    const zohoId   = vendor.contact_id
-    const prev     = existingMap.get(zohoId)
-
-    // For existing vendors: NEVER overwrite serviceType — keep the manually-set value
-    // For new vendors: auto-detect serviceType from name/notes
+  // ── 3. Batch upsert all vendors in one transaction ──────────────────
+  const ops = zohoVendors.map(vendor => {
+    const zohoId      = vendor.contact_id
+    const prev        = existingMap.get(zohoId)
     const serviceType = prev ? prev.serviceType : extractServiceType(vendor)
+    const zohoName    = vendor.contact_name || null
+    const zohoPhone   = vendor.phone || vendor.mobile || null
+    const zohoEmail   = vendor.email || null
 
-    // Only overwrite name/phone/email from Zoho if Zoho has a non-empty value.
-    // This prevents a blank Zoho record from erasing a manually-entered value.
-    const zohoName  = vendor.contact_name || null
-    const zohoPhone = vendor.phone || vendor.mobile || null
-    const zohoEmail = vendor.email || null
-
-    await prisma.supplier.upsert({
+    return prisma.supplier.upsert({
       where: { zohoId },
       update: {
         ...(zohoName  ? { name:  zohoName  } : {}),
         ...(zohoPhone ? { phone: zohoPhone } : {}),
         ...(zohoEmail ? { email: zohoEmail } : {}),
-        // serviceType intentionally omitted — manual edits are preserved
-        // recommendation intentionally omitted — recalculated separately only when evaluations exist
         updatedAt: new Date(),
       },
       create: {
@@ -127,7 +119,8 @@ export async function syncVendors(
         recommendation: 'UNDER_REVIEW',
       },
     })
-  }
+  })
+  await prisma.$transaction(ops)
 
   return zohoVendors.length
 }
@@ -149,26 +142,25 @@ export async function syncCustomers(
     page++
   }
 
-  // ── 2. Bulk upsert ───────────────────────────────────────────────────
-  for (const c of zohoCustomers) {
-    await prisma.customer.upsert({
-      where: { zohoId: c.contact_id },
-      update: {
-        name:    c.contact_name,
-        phone:   c.phone || c.mobile || null,
-        email:   c.email || null,
-        company: c.company_name || null,
-        updatedAt: new Date(),
-      },
-      create: {
-        zohoId:  c.contact_id,
-        name:    c.contact_name,
-        phone:   c.phone || c.mobile || null,
-        email:   c.email || null,
-        company: c.company_name || null,
-      },
-    })
-  }
+  // ── 2. Batch upsert all customers in one transaction ────────────────
+  const ops = zohoCustomers.map(c => prisma.customer.upsert({
+    where: { zohoId: c.contact_id },
+    update: {
+      name:    c.contact_name,
+      phone:   c.phone || c.mobile || null,
+      email:   c.email || null,
+      company: c.company_name || null,
+      updatedAt: new Date(),
+    },
+    create: {
+      zohoId:  c.contact_id,
+      name:    c.contact_name,
+      phone:   c.phone || c.mobile || null,
+      email:   c.email || null,
+      company: c.company_name || null,
+    },
+  }))
+  await prisma.$transaction(ops)
 
   return zohoCustomers.length
 }
@@ -233,12 +225,14 @@ export async function syncBills(
   }
 
   // ── 4. Bulk DB writes ────────────────────────────────────────────────
+  const billOps: any[] = []
   if (toCreate.length > 0) {
-    await prisma.bill.createMany({ data: toCreate, skipDuplicates: true })
+    billOps.push(prisma.bill.createMany({ data: toCreate, skipDuplicates: true }))
   }
   for (const { zohoId, data } of toUpdate) {
-    await prisma.bill.update({ where: { zohoId }, data })
+    billOps.push(prisma.bill.update({ where: { zohoId }, data }))
   }
+  if (billOps.length > 0) await prisma.$transaction(billOps)
 
   // ── 5. Delete bills removed in Zoho ─────────────────────────────────
   const zohoBillIdSet = new Set(zohoBills.map(b => b.bill_id))
@@ -354,12 +348,14 @@ export async function syncInvoices(
   }
 
   // ── 4. Bulk DB writes ────────────────────────────────────────────────
+  const invOps: any[] = []
   if (toCreate.length > 0) {
-    await prisma.invoice.createMany({ data: toCreate, skipDuplicates: true })
+    invOps.push(prisma.invoice.createMany({ data: toCreate, skipDuplicates: true }))
   }
   for (const { id, data } of toUpdate) {
-    await prisma.invoice.update({ where: { id }, data })
+    invOps.push(prisma.invoice.update({ where: { id }, data }))
   }
+  if (invOps.length > 0) await prisma.$transaction(invOps)
 
   // ── 5. Delete invoices removed in Zoho ──────────────────────────────
   const zohoInvIdSet = new Set(zohoInvoices.map(i => i.invoice_id))
@@ -395,11 +391,14 @@ export async function fullSync(): Promise<{
 
   const token = await getAccessToken()
 
-  const vendors   = await syncVendors(orgId, token)
-  const customers = await syncCustomers(orgId, token)
-  const bills     = await syncBills(orgId, token)
-  const invoices  = await syncInvoices(orgId, token)
-  const linked    = await linkBillsToProjects()
+  // Run all 4 syncs in parallel — they write to different tables
+  const [vendors, customers, bills, invoices] = await Promise.all([
+    syncVendors(orgId, token),
+    syncCustomers(orgId, token),
+    syncBills(orgId, token),
+    syncInvoices(orgId, token),
+  ])
+  const linked = await linkBillsToProjects()
   await recalculateAllSupplierRecommendations()
 
   await prisma.setting.upsert({
