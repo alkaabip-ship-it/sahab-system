@@ -14,16 +14,36 @@ export async function GET() {
     const yearStart   = new Date(currentYear, 0, 1)
     const yearEnd     = new Date(currentYear, 11, 31, 23, 59, 59)
 
+    // Current VAT quarter boundaries
+    const now = new Date()
+    const qMonth = Math.floor(now.getMonth() / 3) * 3 // 0, 3, 6, or 9
+    const quarterStart = new Date(currentYear, qMonth, 1)
+    const quarterEnd   = new Date(currentYear, qMonth + 3, 0, 23, 59, 59) // last day of quarter
+
     const [
       allProjects,
       allBills,
       allSuppliers,
       thresholdSetting,
+      quarterBills,
+      quarterInvoices,
+      companyExpenses,
     ] = await Promise.all([
       prisma.project.findMany({ include: { bills: true } }),
       prisma.bill.findMany({ include: { supplier: true, project: true } }),
       prisma.supplier.findMany({ include: { bills: true } }),
       prisma.setting.findUnique({ where: { key: 'LOW_PROFIT_THRESHOLD' } }),
+      // Bills (purchases) in current quarter → input VAT
+      prisma.bill.findMany({
+        where: { billDate: { gte: quarterStart, lte: quarterEnd } },
+        select: { amount: true },
+      }),
+      // Invoices (sales) in current quarter → output VAT
+      prisma.invoice.findMany({
+        where: { invoiceDate: { gte: quarterStart, lte: quarterEnd } },
+        select: { amount: true },
+      }),
+      prisma.companyExpense.findMany(),
     ])
 
     const threshold = parseFloat(thresholdSetting?.value || '20')
@@ -78,7 +98,7 @@ export async function GET() {
       (b) => b.status === 'UNPAID' || b.status === 'PARTIAL'
     )
     const unpaidBillsCount = unpaidBills.length
-    const unpaidBillsAmount = unpaidBills.reduce((s, b) => s + b.amount, 0)
+    const unpaidBillsAmount = unpaidBills.reduce((s, b) => s + b.amount, 0) * 1.05
 
     // Top suppliers by total deals amount
     const supplierTotals = allSuppliers.map((s) => ({
@@ -102,6 +122,20 @@ export async function GET() {
       (p) => p.margin < threshold && p.status !== 'QUOTE'
     )
 
+    // ── Quarterly VAT calculation ──────────────────────────────────────
+    // All amounts are stored VAT-inclusive at 5%
+    // Output VAT = VAT collected from clients (invoices)
+    // Input VAT  = VAT paid to suppliers (bills) — this is deductible
+    const quarterOutputVatBase = quarterInvoices.reduce((s, i) => s + i.amount, 0)
+    const quarterInputVatBase  = quarterBills.reduce((s, b) => s + b.amount, 0)
+    const quarterOutputVat = quarterOutputVatBase * 5 / 105   // VAT portion in invoices
+    const quarterInputVat  = quarterInputVatBase  * 5 / 105   // VAT portion in bills
+    const quarterNetVat    = quarterOutputVat - quarterInputVat // what you owe the FTA
+    const quarterLabel     = `الربع ${['الأول','الثاني','الثالث','الرابع'][Math.floor(now.getMonth()/3)]}`
+
+    // Build expense map for easy lookup
+    const expenseMap = Object.fromEntries(companyExpenses.map(e => [e.key, e]))
+
     return NextResponse.json({
       currentYear,
       totalProjects,
@@ -117,10 +151,16 @@ export async function GET() {
       avgProfitMargin,
       unpaidBillsCount,
       unpaidBillsAmount,
+      quarterOutputVat,
+      quarterInputVat,
+      quarterNetVat,
+      quarterLabel,
       topSuppliers,
       problematicSuppliers,
       lowProfitProjects,
       threshold,
+      rentExpense:    expenseMap['RENT']    ?? null,
+      licenseExpense: expenseMap['LICENSE'] ?? null,
     })
   } catch (error) {
     console.error('Dashboard error:', error)

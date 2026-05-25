@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { useSession } from 'next-auth/react'
 import { getStatusColor } from '@/lib/utils'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
 import { usePermissions } from '@/lib/PermissionsContext'
@@ -9,7 +10,55 @@ import {
   HiClipboardDocumentList, HiBolt, HiBriefcase, HiBanknotes,
   HiArrowTrendingUp, HiAdjustmentsHorizontal, HiBell,
   HiExclamationCircle, HiExclamationTriangle, HiSparkles,
+  HiReceiptPercent, HiHomeModern, HiCalendarDays, HiKey,
 } from 'react-icons/hi2'
+
+/** Returns info about the next UAE VAT quarterly return deadline */
+function getVatDeadlineInfo() {
+  const now  = new Date()
+  const y    = now.getFullYear()
+  const m    = now.getMonth() // 0-indexed
+
+  // UAE quarterly periods: Q1 Jan-Mar due Apr-28, Q2 Apr-Jun due Jul-28,
+  //                         Q3 Jul-Sep due Oct-28, Q4 Oct-Dec due Jan-28(next year)
+  const periods = [
+    { label: 'الربع الأول (يناير - مارس)',     due: new Date(y,    3, 28) }, // Apr 28
+    { label: 'الربع الثاني (أبريل - يونيو)',   due: new Date(y,    6, 28) }, // Jul 28
+    { label: 'الربع الثالث (يوليو - سبتمبر)', due: new Date(y,    9, 28) }, // Oct 28
+    { label: 'الربع الرابع (أكتوبر - ديسمبر)',due: new Date(y+1,  0, 28) }, // Jan 28 next year
+  ]
+
+  // Find next upcoming deadline (or the one that just passed within 7 days)
+  const upcoming = periods
+    .map(p => ({ ...p, daysLeft: Math.ceil((p.due.getTime() - now.getTime()) / 86400000) }))
+    .find(p => p.daysLeft > -8) // show if overdue by up to 7 days
+
+  return upcoming || null
+}
+
+/** Rent contract info — computed from DB CompanyExpense.RENT */
+function getRentInfo(rentExpense: any) {
+  const now = new Date()
+  const daysLeft = (d: Date) => Math.ceil((d.getTime() - now.getTime()) / 86400000)
+
+  if (!rentExpense?.expiryDate) return null
+
+  const contractEnd   = new Date(rentExpense.expiryDate)
+  // Renewal notice = 30 days before contract end
+  const renewalNotice = new Date(contractEnd.getTime() - 30 * 86400000)
+  // Annual rent → quarterly payments
+  const annualAmount  = rentExpense.amount ?? 0
+  const quarterly     = Math.round(annualAmount / 4)
+
+  return {
+    contractEnd,
+    contractEndDays:    daysLeft(contractEnd),
+    renewalNotice,
+    renewalNoticeDays:  daysLeft(renewalNotice),
+    annualAmount,
+    quarterly,
+  }
+}
 
 function KPICard({ title, value, sub, color, icon, delay = '' }: { title: string; value: string; sub?: string; color: string; icon: React.ReactNode; delay?: string }) {
   return (
@@ -27,8 +76,12 @@ function KPICard({ title, value, sub, color, icon, delay = '' }: { title: string
 export default function DashboardPage() {
   const { t } = useTranslation()
   const perms = usePermissions()
+  const { data: session } = useSession()
+  const isAdmin = (session?.user as any)?.role === 'ADMIN'
+  const vatInfo  = getVatDeadlineInfo()
   const mask = !perms.viewFinancials
-  const [data, setData] = useState<any>(null)
+  const [data, setData]     = useState<any>(null)
+  const [rentInfo, setRentInfo] = useState<any>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [warnings, setWarnings] = useState<any[]>([])
@@ -41,7 +94,11 @@ export default function DashboardPage() {
   useEffect(() => {
     fetch('/api/dashboard')
       .then((r) => r.json())
-      .then((d) => { setData(d); setLoading(false) })
+      .then((d) => {
+        setData(d)
+        setRentInfo(getRentInfo(d.rentExpense))
+        setLoading(false)
+      })
       .catch(() => { setError(t.common.error); setLoading(false) })
 
     fetch('/api/admin')
@@ -125,9 +182,205 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* VAT Return Card — Admin only, always visible */}
+      {isAdmin && vatInfo && (
+        <div className={`rounded-2xl border animate-fade-up overflow-hidden ${
+          vatInfo.daysLeft <= 0   ? 'border-red-400'
+          : vatInfo.daysLeft <= 7  ? 'border-red-300'
+          : vatInfo.daysLeft <= 30 ? 'border-amber-300'
+          : 'border-indigo-200'
+        }`}>
+          {/* Header bar */}
+          <div className={`flex items-center justify-between px-4 py-3 ${
+            vatInfo.daysLeft <= 0   ? 'bg-red-600 text-white'
+            : vatInfo.daysLeft <= 7  ? 'bg-red-500 text-white'
+            : vatInfo.daysLeft <= 30 ? 'bg-amber-500 text-white'
+            : 'bg-indigo-600 text-white'
+          }`}>
+            <div className="flex items-center gap-2">
+              <HiReceiptPercent size={18} />
+              <span className="font-bold text-sm">
+                {vatInfo.daysLeft <= 0   ? '⚠️ الإقرار الضريبي — متأخر!'
+                : vatInfo.daysLeft <= 7  ? '🔴 الإقرار الضريبي — قريب جداً'
+                : vatInfo.daysLeft <= 30 ? '🟡 الإقرار الضريبي — اقترب الموعد'
+                : '📋 الإقرار الضريبي الفصلي'}
+              </span>
+            </div>
+            <div className="flex items-center gap-3 text-xs">
+              <span className="opacity-80">{vatInfo.label}</span>
+              <span className="bg-white/20 px-2 py-0.5 rounded-full font-bold">
+                {vatInfo.daysLeft <= 0
+                  ? `متأخر ${Math.abs(vatInfo.daysLeft)} يوم`
+                  : `${vatInfo.daysLeft} يوم متبقي`}
+              </span>
+              <span className="opacity-80">
+                الموعد: {vatInfo.due.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long' })}
+              </span>
+            </div>
+          </div>
+
+          {/* VAT breakdown */}
+          <div className="bg-white p-4">
+            <p className="text-xs text-slate-500 mb-3 font-medium">
+              حساب ضريبة القيمة المضافة المستحقة — {data.quarterLabel} (بناءً على فواتيرك ومصروفاتك)
+            </p>
+            <div className="grid grid-cols-3 gap-3">
+              {/* Output VAT */}
+              <div className="bg-green-50 border border-green-100 rounded-xl p-3 text-center">
+                <p className="text-xs text-green-700 font-medium mb-1">ضريبة المبيعات</p>
+                <p className="text-lg font-black text-green-700">{mask ? '••••' : new Intl.NumberFormat('ar-AE').format(Math.round(data.quarterOutputVat))}</p>
+                <p className="text-xs text-green-600 mt-0.5">د.إ</p>
+                <p className="text-xs text-slate-400 mt-1">جمعتها من عملائك</p>
+              </div>
+
+              {/* Input VAT */}
+              <div className="bg-blue-50 border border-blue-100 rounded-xl p-3 text-center">
+                <p className="text-xs text-blue-700 font-medium mb-1">ضريبة المشتريات</p>
+                <p className="text-lg font-black text-blue-700">{mask ? '••••' : new Intl.NumberFormat('ar-AE').format(Math.round(data.quarterInputVat))}</p>
+                <p className="text-xs text-blue-600 mt-0.5">د.إ</p>
+                <p className="text-xs text-slate-400 mt-1">دفعتها للموردين</p>
+              </div>
+
+              {/* Net VAT payable */}
+              <div className={`rounded-xl p-3 text-center border ${
+                data.quarterNetVat > 0 ? 'bg-red-50 border-red-200' : 'bg-emerald-50 border-emerald-200'
+              }`}>
+                <p className={`text-xs font-bold mb-1 ${data.quarterNetVat > 0 ? 'text-red-700' : 'text-emerald-700'}`}>
+                  {data.quarterNetVat > 0 ? 'مستحق للهيئة' : 'استرداد من الهيئة'}
+                </p>
+                <p className={`text-xl font-black ${data.quarterNetVat > 0 ? 'text-red-600' : 'text-emerald-600'}`}>
+                  {mask ? '••••' : new Intl.NumberFormat('ar-AE').format(Math.round(Math.abs(data.quarterNetVat)))}
+                </p>
+                <p className={`text-xs mt-0.5 ${data.quarterNetVat > 0 ? 'text-red-500' : 'text-emerald-500'}`}>د.إ</p>
+                <p className="text-xs text-slate-400 mt-1">المبيعات − المشتريات</p>
+              </div>
+            </div>
+            <p className="text-xs text-slate-400 mt-2 text-center">
+              * يعتمد على الفواتير المُدخلة في النظام — تأكد من اكتمال البيانات قبل التقديم
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Rent Contract Card — Admin only, reads from DB */}
+      {isAdmin && rentInfo && (
+        <div className={`rounded-2xl border overflow-hidden animate-fade-up ${
+          rentInfo.contractEndDays <= 30  ? 'border-red-400'
+          : rentInfo.contractEndDays <= 60 ? 'border-amber-300'
+          : 'border-teal-200'
+        }`}>
+          {/* Header */}
+          <div className={`flex items-center justify-between px-4 py-3 ${
+            rentInfo.contractEndDays <= 30  ? 'bg-red-600 text-white'
+            : rentInfo.contractEndDays <= 60 ? 'bg-amber-500 text-white'
+            : 'bg-teal-600 text-white'
+          }`}>
+            <div className="flex items-center gap-2">
+              <HiHomeModern size={18} />
+              <span className="font-bold text-sm">
+                {rentInfo.contractEndDays <= 30
+                  ? '⚠️ عقد الإيجار — ينتهي قريباً جداً!'
+                  : rentInfo.contractEndDays <= 60
+                  ? '🟡 عقد الإيجار — اقترب الموعد'
+                  : '🏢 عقد إيجار المكتب'}
+              </span>
+            </div>
+            <a href="/dashboard/admin" className="text-xs bg-white/20 hover:bg-white/30 px-3 py-1 rounded-full transition-all">
+              تعديل ←
+            </a>
+          </div>
+
+          {/* Body */}
+          <div className="bg-white p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+              {/* Annual rent */}
+              <div className="bg-teal-50 border border-teal-100 rounded-xl p-3">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <HiKey size={14} className="text-teal-600" />
+                  <p className="text-xs font-semibold text-teal-700">الإيجار السنوي</p>
+                </div>
+                <p className="text-xl font-black text-teal-700">
+                  {new Intl.NumberFormat('ar-AE').format(rentInfo.annualAmount)}
+                  <span className="text-xs font-normal mr-1">د.إ</span>
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  ≈ {new Intl.NumberFormat('ar-AE').format(rentInfo.quarterly)} د.إ / ربع سنة
+                </p>
+              </div>
+
+              {/* Contract expiry */}
+              <div className={`rounded-xl p-3 border ${
+                rentInfo.contractEndDays <= 30  ? 'bg-red-50 border-red-200'
+                : rentInfo.contractEndDays <= 90 ? 'bg-amber-50 border-amber-200'
+                : 'bg-slate-50 border-slate-200'
+              }`}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <HiCalendarDays size={14} className={
+                    rentInfo.contractEndDays <= 30 ? 'text-red-600'
+                    : rentInfo.contractEndDays <= 90 ? 'text-amber-600' : 'text-slate-500'
+                  } />
+                  <p className={`text-xs font-semibold ${
+                    rentInfo.contractEndDays <= 30 ? 'text-red-700'
+                    : rentInfo.contractEndDays <= 90 ? 'text-amber-700' : 'text-slate-600'
+                  }`}>انتهاء العقد</p>
+                </div>
+                <p className={`text-xl font-black ${
+                  rentInfo.contractEndDays <= 30 ? 'text-red-600'
+                  : rentInfo.contractEndDays <= 90 ? 'text-amber-600' : 'text-slate-700'
+                }`}>
+                  {rentInfo.contractEndDays > 0 ? rentInfo.contractEndDays : Math.abs(rentInfo.contractEndDays)}
+                  <span className="text-xs font-normal mr-1">
+                    {rentInfo.contractEndDays > 0 ? 'يوم متبقي' : 'يوم مضى'}
+                  </span>
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {rentInfo.contractEnd.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+              </div>
+
+              {/* Renewal notice deadline */}
+              <div className={`rounded-xl p-3 border ${
+                rentInfo.renewalNoticeDays <= 0  ? 'bg-red-50 border-red-200'
+                : rentInfo.renewalNoticeDays <= 30 ? 'bg-amber-50 border-amber-200'
+                : 'bg-purple-50 border-purple-200'
+              }`}>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <HiBell size={14} className={
+                    rentInfo.renewalNoticeDays <= 0 ? 'text-red-600'
+                    : rentInfo.renewalNoticeDays <= 30 ? 'text-amber-600' : 'text-purple-600'
+                  } />
+                  <p className={`text-xs font-semibold ${
+                    rentInfo.renewalNoticeDays <= 0 ? 'text-red-700'
+                    : rentInfo.renewalNoticeDays <= 30 ? 'text-amber-700' : 'text-purple-700'
+                  }`}>آخر موعد للإشعار</p>
+                </div>
+                <p className={`text-xl font-black ${
+                  rentInfo.renewalNoticeDays <= 0 ? 'text-red-600'
+                  : rentInfo.renewalNoticeDays <= 30 ? 'text-amber-600' : 'text-purple-700'
+                }`}>
+                  {Math.abs(rentInfo.renewalNoticeDays)}
+                  <span className="text-xs font-normal mr-1">
+                    {rentInfo.renewalNoticeDays <= 0 ? 'يوم مضى' : 'يوم'}
+                  </span>
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {rentInfo.renewalNotice.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">
+                  {rentInfo.renewalNoticeDays <= 0
+                    ? 'انتهى الموعد — العقد سيُجدَّد تلقائياً'
+                    : 'أشعر بعدم الرغبة في التجديد قبل هذا التاريخ'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Financial Summary */}
       <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-6 text-white">
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex flex-wrap items-center justify-between gap-2 mb-5">
           <h2 className="text-sm font-semibold text-slate-400 uppercase tracking-wide">
             الملخص المالي السنوي (بدون ضريبة)
           </h2>
@@ -265,7 +518,7 @@ export default function DashboardPage() {
       )}
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <KPICard title={t.dashboard.totalProjects}  value={String(data.totalProjects)}                       icon={<HiClipboardDocumentList size={24} className="text-blue-500" />}   color="bg-blue-50"   delay="delay-100" />
         <KPICard title={t.dashboard.activeProjects}  value={String(data.activeProjects)}                      icon={<HiBolt size={24} className="text-yellow-500" />}                   color="bg-yellow-50" delay="delay-150" />
         <KPICard title={t.dashboard.totalValue}      value={`${formatNum(data.totalValue)} ${t.common.aed}`}  icon={<HiBriefcase size={24} className="text-sky-500" />}                 color="bg-sky-50"    delay="delay-200" />
@@ -282,15 +535,16 @@ export default function DashboardPage() {
             <h3 className="font-semibold text-slate-800">{t.dashboard.unpaidBills}</h3>
             <Link href="/dashboard/bills" className="text-sm text-sky-500 hover:text-sky-600">{t.common.all}</Link>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex flex-wrap items-center gap-4 sm:gap-6">
             <div className="text-center">
               <p className="text-3xl font-bold text-red-500">{data.unpaidBillsCount}</p>
               <p className="text-xs text-slate-500 mt-1">{t.bills.billsCount}</p>
             </div>
-            <div className="h-12 w-px bg-slate-100" />
+            <div className="h-12 w-px bg-slate-100 hidden sm:block" />
             <div className="text-center">
               <p className="text-2xl font-bold text-red-500">{formatNum(data.unpaidBillsAmount)}</p>
               <p className="text-xs text-slate-500 mt-1">{t.common.aed}</p>
+              <p className="text-xs text-amber-500 mt-0.5">شامل ضريبة ٥٪</p>
             </div>
           </div>
         </div>
