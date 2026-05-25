@@ -107,6 +107,7 @@ export default function EventManagementPage() {
   const isRTL = lang === 'ar'
 
   // ── State ────────────────────────────────────────────────────────────────
+  const [now, setNow] = useState(() => Date.now())
   const [events,       setEvents]       = useState<EventData[]>([])
   const [activeId,     setActiveId]     = useState<string | null>(null)
   const [phase,        setPhase]        = useState<'overview'|'loading'|'unloading'|'setup'|'execution'>('overview')
@@ -127,6 +128,19 @@ export default function EventManagementPage() {
   // cue
   const [nCueTime,setNCueTime]=useState(''); const [nCueDur,setNCueDur]=useState('')
   const [nCueLabel,setNCueLabel]=useState(''); const [nCueTarget,setNCueTarget]=useState('')
+  // new cargo item
+  const [nCargoName, setNCargoName] = useState('')
+  const [nCargoTruck, setNCargoTruck] = useState('Truck 1')
+  const [nCargoQty,  setNCargoQty]  = useState('1')
+  // crew management
+  const [showCrewMgr, setShowCrewMgr] = useState(false)
+  const [newCrewName, setNewCrewName] = useState('')
+
+  // ── Tick every second for countdown ──────────────────────────────────────
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   // ── Persistence ───────────────────────────────────────────────────────────
   useEffect(() => {
@@ -177,10 +191,14 @@ export default function EventManagementPage() {
 
   const countdown = (() => {
     if (!ev?.date) return '--'
-    const diff = new Date(ev.date).getTime() - Date.now()
+    const diff = new Date(ev.date).getTime() - now
     if (diff <= 0) return isRTL ? '🎉 يوم الفعالية' : '🎉 EVENT DAY'
-    const d=Math.floor(diff/86400000), h=Math.floor((diff%86400000)/3600000), mn=Math.floor((diff%3600000)/60000)
-    return d>0 ? `${d}d ${h}h ${mn}m` : `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}`
+    const d  = Math.floor(diff / 86400000)
+    const h  = Math.floor((diff % 86400000) / 3600000)
+    const mn = Math.floor((diff % 3600000) / 60000)
+    const sc = Math.floor((diff % 60000) / 1000)
+    if (d > 0) return `${d}d ${String(h).padStart(2,'0')}h ${String(mn).padStart(2,'0')}m`
+    return `${String(h).padStart(2,'0')}:${String(mn).padStart(2,'0')}:${String(sc).padStart(2,'0')}`
   })()
 
   // ── Event CRUD ────────────────────────────────────────────────────────────
@@ -201,6 +219,29 @@ export default function EventManagementPage() {
     const rem = events.filter(e=>e.id!==id)
     setEvents(rem)
     if (activeId===id) setActiveId(rem[0]?.id||null)
+  }
+
+  // ── Cargo CRUD ────────────────────────────────────────────────────────────
+  function addCargoItem() {
+    if (!nCargoName.trim()) return
+    const item: CargoItem = { id: uid(), name: nCargoName, truck: nCargoTruck, qty: parseInt(nCargoQty)||1, loaded: false, unloaded: false }
+    upd(e => ({ ...e, loadingChecklist: [...e.loadingChecklist, item] }))
+    setNCargoName(''); setNCargoQty('1')
+    addLog(`📦 Added cargo: "${nCargoName}"`, 'load')
+  }
+  function delCargoItem(id: string) {
+    upd(e => ({ ...e, loadingChecklist: e.loadingChecklist.filter(i => i.id !== id) }))
+  }
+
+  // ── Crew ─────────────────────────────────────────────────────────────────
+  function addCrewMember() {
+    if (!newCrewName.trim() || !ev) return
+    if (ev.crewOwners.includes(newCrewName.trim())) return
+    upd(e => ({ ...e, crewOwners: [...e.crewOwners, newCrewName.trim()] }))
+    setNewCrewName('')
+  }
+  function removeCrewMember(name: string) {
+    upd(e => ({ ...e, crewOwners: e.crewOwners.filter(o => o !== name) }))
   }
 
   // ── Loading / Unloading ───────────────────────────────────────────────────
@@ -376,6 +417,32 @@ export default function EventManagementPage() {
                 {m.issues>0 && <div style={{ fontSize:11, color:C.danger, fontWeight:600, marginTop:4 }}>⚠️ {m.issues} {isRTL?'مشكلة':'issue(s)'}</div>}
               </div>
 
+              {/* Crew management */}
+              <div style={card()}>
+                <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom: showCrewMgr ? 12 : 0 }}>
+                  <div style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:C.textM }}>👥 {isRTL?'أعضاء الفريق':'Crew'} ({ev.crewOwners.length})</div>
+                  <button onClick={()=>setShowCrewMgr(p=>!p)} style={{ background:'transparent', border:'none', cursor:'pointer', color:C.textM, fontSize:12 }}>{showCrewMgr?'▲':'▼'}</button>
+                </div>
+                {showCrewMgr && (
+                  <>
+                    <div style={{ display:'flex', flexWrap:'wrap', gap:5, marginBottom:10 }}>
+                      {ev.crewOwners.map(o=>(
+                        <span key={o} style={{ display:'flex', alignItems:'center', gap:4, background:'rgba(255,255,255,0.06)', border:`1px solid ${C.border}`, borderRadius:20, padding:'3px 8px', fontSize:11 }}>
+                          {o}
+                          <button onClick={()=>removeCrewMember(o)} style={{ background:'transparent', border:'none', cursor:'pointer', color:C.textM, fontSize:10, lineHeight:1, padding:0 }}>×</button>
+                        </span>
+                      ))}
+                    </div>
+                    <div style={{ display:'flex', gap:5 }}>
+                      <input value={newCrewName} onChange={e=>setNewCrewName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCrewMember()}
+                        placeholder={isRTL?'اسم العضو...':'Member name...'}
+                        style={{ ...input(), fontSize:11, padding:'5px 8px' }} />
+                      <button onClick={addCrewMember} style={btn(C.setup,undefined,{fontSize:11,padding:'5px 10px'})}>+</button>
+                    </div>
+                  </>
+                )}
+              </div>
+
               {/* Other events */}
               {events.length > 1 && (
                 <div>
@@ -455,21 +522,35 @@ export default function EventManagementPage() {
                 <h2 style={{ fontWeight:700, fontSize:'1.5rem', color:C.load, marginBottom:4 }}>{isRTL?'مرحلة التحميل':'Loading Phase'}</h2>
                 <p style={{ color:C.textS, fontSize:13 }}>{isRTL?'تتبع تحميل المعدات في الشاحنات':'Track equipment loading onto trucks'}</p>
               </div>
+              {/* Add cargo form */}
+              <div style={{ ...card({ marginBottom:18, borderStyle:'dashed' }), background:'rgba(0,0,0,0.15)' }}>
+                <div style={{ fontSize:11, color:C.textM, marginBottom:8, fontWeight:600 }}>+ {isRTL?'إضافة معدة جديدة':'Add New Item'}</div>
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <input value={nCargoName} onChange={e=>setNCargoName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCargoItem()}
+                    placeholder={isRTL?'اسم المعدة...':'Equipment name...'}
+                    style={{ ...input(), flex:'1 1 160px', minWidth:120 }} />
+                  <input value={nCargoTruck} onChange={e=>setNCargoTruck(e.target.value)} placeholder="Truck 1"
+                    style={{ ...input(), flex:'0 0 80px' }} />
+                  <input type="number" value={nCargoQty} onChange={e=>setNCargoQty(e.target.value)} min={1}
+                    style={{ ...input(), flex:'0 0 60px' }} />
+                  <button onClick={addCargoItem} style={btn(C.load,'black',{padding:'8px 16px'})}>{isRTL?'إضافة':'Add'}</button>
+                </div>
+              </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {ev.loadingChecklist.map(item=>(
-                  <div key={item.id} onClick={()=>toggleLoaded(item.id)}
-                    style={{ ...card(), display:'flex', alignItems:'center', gap:16, cursor:'pointer', borderColor: item.loaded ? `${C.load}33` : C.border, background: item.loaded ? `${C.load}08` : C.surface, transition:'all .2s' }}>
+                  <div key={item.id} style={{ ...card(), display:'flex', alignItems:'center', gap:16, borderColor: item.loaded ? `${C.load}33` : C.border, background: item.loaded ? `${C.load}08` : C.surface, transition:'all .2s' }}>
                     {/* Checkbox */}
-                    <div style={{ width:22, height:22, border:`2px solid ${item.loaded ? C.load : C.textM}`, borderRadius:5, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: item.loaded ? `${C.load}22` : 'transparent', transition:'all .2s' }}>
+                    <div onClick={()=>toggleLoaded(item.id)} style={{ width:22, height:22, border:`2px solid ${item.loaded ? C.load : C.textM}`, borderRadius:5, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: item.loaded ? `${C.load}22` : 'transparent', transition:'all .2s', cursor:'pointer' }}>
                       {item.loaded && <span style={{ color:C.load, fontSize:14, fontWeight:700 }}>✓</span>}
                     </div>
-                    <div style={{ flex:1 }}>
+                    <div style={{ flex:1, cursor:'pointer' }} onClick={()=>toggleLoaded(item.id)}>
                       <div style={{ fontWeight:600, fontSize:13, textDecoration: item.loaded ? 'line-through' : 'none', color: item.loaded ? C.textM : C.textP }}>{item.name}</div>
                       <div style={{ fontSize:11, color:C.textM, marginTop:2 }}>{item.truck} · Qty: {item.qty}</div>
                     </div>
                     <span style={{ padding:'3px 8px', borderRadius:4, fontSize:10, fontWeight:700, background: item.loaded ? `${C.load}22` : 'rgba(255,255,255,0.05)', color: item.loaded ? C.load : C.textM }}>
                       {item.loaded ? (isRTL?'محمّل':'Loaded') : (isRTL?'قيد الانتظار':'Pending')}
                     </span>
+                    <button onClick={()=>delCargoItem(item.id)} style={{ background:'transparent', border:'none', cursor:'pointer', color:C.textM, fontSize:12, padding:4, borderRadius:4 }}>🗑️</button>
                   </div>
                 ))}
               </div>
