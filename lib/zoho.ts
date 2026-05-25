@@ -87,7 +87,7 @@ export async function syncVendors(
 
   // ── 2. Load existing suppliers from DB ───────────────────────────────
   const existing = await prisma.supplier.findMany({
-    select: { id: true, zohoId: true, serviceType: true },
+    select: { id: true, zohoId: true, serviceType: true, name: true, phone: true, email: true },
   })
   const existingMap = new Map(
     existing.filter(s => s.zohoId).map(s => [s.zohoId!, s])
@@ -96,26 +96,33 @@ export async function syncVendors(
   // ── 3. Process each vendor ───────────────────────────────────────────
   for (const vendor of zohoVendors) {
     const zohoId   = vendor.contact_id
-    const existing = existingMap.get(zohoId)
+    const prev     = existingMap.get(zohoId)
 
     // For existing vendors: NEVER overwrite serviceType — keep the manually-set value
     // For new vendors: auto-detect serviceType from name/notes
-    const serviceType = existing ? existing.serviceType : extractServiceType(vendor)
+    const serviceType = prev ? prev.serviceType : extractServiceType(vendor)
+
+    // Only overwrite name/phone/email from Zoho if Zoho has a non-empty value.
+    // This prevents a blank Zoho record from erasing a manually-entered value.
+    const zohoName  = vendor.contact_name || null
+    const zohoPhone = vendor.phone || vendor.mobile || null
+    const zohoEmail = vendor.email || null
 
     await prisma.supplier.upsert({
       where: { zohoId },
       update: {
-        name:      vendor.contact_name,
-        phone:     vendor.phone || vendor.mobile || null,
-        email:     vendor.email || null,
+        ...(zohoName  ? { name:  zohoName  } : {}),
+        ...(zohoPhone ? { phone: zohoPhone } : {}),
+        ...(zohoEmail ? { email: zohoEmail } : {}),
         // serviceType intentionally omitted — manual edits are preserved
+        // recommendation intentionally omitted — recalculated separately only when evaluations exist
         updatedAt: new Date(),
       },
       create: {
         zohoId,
-        name:        vendor.contact_name,
-        phone:       vendor.phone || vendor.mobile || null,
-        email:       vendor.email || null,
+        name:           zohoName  ?? '',
+        phone:          zohoPhone,
+        email:          zohoEmail,
         serviceType,
         recommendation: 'UNDER_REVIEW',
       },
@@ -263,12 +270,18 @@ export async function linkBillsToProjects(): Promise<number> {
 }
 
 export async function recalculateAllSupplierRecommendations(): Promise<void> {
-  const suppliers = await prisma.supplier.findMany({ select: { id: true } })
+  // Only recalculate suppliers that actually have evaluations.
+  // Suppliers without evaluations keep their manually-set recommendation.
+  const suppliersWithEvals = await prisma.supplierEvaluation.findMany({
+    select: { supplierId: true },
+    distinct: ['supplierId'],
+  })
+  const ids = suppliersWithEvals.map(e => e.supplierId)
 
-  for (const supplier of suppliers) {
-    const recommendation = await calculateSupplierRecommendation(supplier.id)
+  for (const id of ids) {
+    const recommendation = await calculateSupplierRecommendation(id)
     await prisma.supplier.update({
-      where: { id: supplier.id },
+      where: { id },
       data: { recommendation },
     })
   }
