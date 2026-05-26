@@ -60,6 +60,8 @@ export async function DELETE(
 ) {
   const session = await getServerSession(authOptions)
   if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+  if ((session.user as any)?.role !== 'ADMIN')
+    return NextResponse.json({ error: 'مدير النظام فقط' }, { status: 403 })
 
   try {
     // Delete bills first, then supplier
@@ -77,9 +79,7 @@ export async function PUT(
   { params }: { params: { id: string } }
 ) {
   const session = await getServerSession(authOptions)
-  if (!session) {
-    return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
-  }
+  if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
 
   try {
     const body = await req.json()
