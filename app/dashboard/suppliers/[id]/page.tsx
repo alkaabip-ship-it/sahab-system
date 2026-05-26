@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { getStatusLabel, getStatusColor } from '@/lib/utils'
 import { usePermissions } from '@/lib/PermissionsContext'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { useSession } from 'next-auth/react'
 import { HiPencil, HiTrash } from 'react-icons/hi2'
 
 const SERVICE_KEYS = [
@@ -26,6 +27,9 @@ export default function SupplierDetailPage() {
   const id     = params.id as string
   const perms  = usePermissions()
   const { t, lang } = useTranslation()
+  const { data: session } = useSession()
+  const isAdmin = (session?.user as any)?.role === 'ADMIN'
+  const canEdit = true // all users can edit suppliers
   const isRTL = lang === 'ar'
 
   const [supplier,       setSupplier]       = useState<any>(null)
@@ -133,16 +137,16 @@ export default function SupplierDetailPage() {
 
       {/* Header card */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <div className="flex items-start justify-between mb-4">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
 
           {/* Edit form / Display */}
           <div className="flex-1">
             {editing ? (
               <div className="space-y-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
                   {/* Supplier name — full width */}
-                  <div className="col-span-2">
+                  <div className="sm:col-span-2">
                     <label className="block text-xs font-medium text-slate-600 mb-1">{t.suppliers.name}</label>
                     <input
                       value={editForm.name}
@@ -242,6 +246,7 @@ export default function SupplierDetailPage() {
           {/* Action buttons */}
           {!editing && (
             <div className="flex items-center gap-2 flex-shrink-0 ms-4">
+              {/* Edit — all users */}
               <button
                 onClick={() => setEditing(true)}
                 className="text-sm px-3 py-2 border border-slate-200 text-slate-500 hover:bg-slate-50 rounded-lg transition-all flex items-center gap-1.5"
@@ -249,7 +254,8 @@ export default function SupplierDetailPage() {
                 <HiPencil size={14} /> {t.common.edit}
               </button>
 
-              {!confirmDelete ? (
+              {/* Delete — ADMIN only */}
+              {isAdmin && (!confirmDelete ? (
                 <button
                   onClick={() => setConfirmDelete(true)}
                   className="text-sm px-3 py-2 border border-red-200 text-red-400 hover:bg-red-50 rounded-lg transition-all flex items-center gap-1.5"
@@ -275,13 +281,13 @@ export default function SupplierDetailPage() {
                     {t.common.cancel}
                   </button>
                 </div>
-              )}
+              ))}
             </div>
           )}
         </div>
 
         {/* KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 pt-4 border-t border-slate-100">
           {perms.viewFinancials && (
             <div className="text-center">
               <p className="text-xs text-slate-400 mb-1">{t.suppliers.totalAmount}</p>
@@ -359,54 +365,58 @@ export default function SupplierDetailPage() {
               {supplier.bills?.length === 0 ? (
                 <p className="text-center text-slate-400 py-8">{t.bills.noBills}</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-slate-500">
-                      <th className="text-start pb-2">{t.bills.billNumber}</th>
-                      <th className="text-start pb-2">{t.bills.project}</th>
-                      {perms.viewFinancials && <th className="text-start pb-2">{t.bills.amount}</th>}
-                      <th className="text-start pb-2">{t.bills.date}</th>
-                      <th className="text-start pb-2">{t.bills.status}</th>
-                      <th className="pb-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {supplier.bills.map((b: any) => (
-                      <tr key={b.id} className="border-b border-slate-50 group">
-                        <td className="py-2 font-mono text-xs text-slate-500">{b.billNumber}</td>
-                        <td className="py-2 text-slate-700">
-                          {b.project ? (
-                            <Link href={`/dashboard/projects/${b.project.id}`} className="hover:text-sky-600">
-                              {b.project.name}
-                            </Link>
-                          ) : (
-                            <span className="text-orange-400 text-xs">{t.bills.unlinked}</span>
-                          )}
-                        </td>
-                        {perms.viewFinancials && (
-                          <td className="py-2 font-medium">
-                            {formatNum(b.amount)} <span className="text-xs text-slate-400">{t.common.aed}</span>
-                          </td>
-                        )}
-                        <td className="py-2 text-xs text-slate-500">{formatDate(b.billDate)}</td>
-                        <td className="py-2">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(b.status)}`}>
-                            {getStatusLabel(b.status)}
-                          </span>
-                        </td>
-                        <td className="py-2">
-                          <button
-                            onClick={() => handleDeleteBill(b.id)}
-                            disabled={deletingBill === b.id}
-                            className="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 px-2 py-0.5 rounded transition-all disabled:opacity-30"
-                          >
-                            {deletingBill === b.id ? '...' : t.common.delete}
-                          </button>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-slate-500">
+                        <th className="hidden sm:table-cell text-start pb-2 whitespace-nowrap">{t.bills.billNumber}</th>
+                        <th className="text-start pb-2">{t.bills.project}</th>
+                        {perms.viewFinancials && <th className="text-start pb-2 whitespace-nowrap">{t.bills.amount}</th>}
+                        <th className="hidden sm:table-cell text-start pb-2 whitespace-nowrap">{t.bills.date}</th>
+                        <th className="text-start pb-2">{t.bills.status}</th>
+                        <th className="pb-2" />
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {supplier.bills.map((b: any) => (
+                        <tr key={b.id} className="border-b border-slate-50 group">
+                          <td className="hidden sm:table-cell py-2 font-mono text-xs text-slate-500 whitespace-nowrap">{b.billNumber}</td>
+                          <td className="py-2 text-slate-700">
+                            {b.project ? (
+                              <Link href={`/dashboard/projects/${b.project.id}`} className="hover:text-sky-600">
+                                {b.project.name}
+                              </Link>
+                            ) : (
+                              <span className="text-orange-400 text-xs">{t.bills.unlinked}</span>
+                            )}
+                          </td>
+                          {perms.viewFinancials && (
+                            <td className="py-2 font-medium whitespace-nowrap">
+                              {formatNum(b.amount)} <span className="text-xs text-slate-400">{t.common.aed}</span>
+                            </td>
+                          )}
+                          <td className="hidden sm:table-cell py-2 text-xs text-slate-500 whitespace-nowrap">{formatDate(b.billDate)}</td>
+                          <td className="py-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(b.status)}`}>
+                              {getStatusLabel(b.status)}
+                            </span>
+                          </td>
+                          <td className="py-2">
+                            {isAdmin && (
+                              <button
+                                onClick={() => handleDeleteBill(b.id)}
+                                disabled={deletingBill === b.id}
+                                className="opacity-0 group-hover:opacity-100 text-xs text-red-400 hover:text-red-600 border border-red-200 hover:border-red-400 px-2 py-0.5 rounded transition-all disabled:opacity-30"
+                              >
+                                {deletingBill === b.id ? '...' : t.common.delete}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}
