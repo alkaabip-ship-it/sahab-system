@@ -266,6 +266,40 @@ export default function SuppliersPage() {
   const [cardPage,      setCardPage]      = useState(1)
   const CARDS_PER_PAGE = 12
 
+  // CSV export
+  function exportCSV() {
+    const SERVICE_AR: Record<string, string> = {
+      SOUND: 'صوتيات', LIGHT: 'إضاءة', SCREEN: 'شاشات', STAGE: 'مسارح',
+      TRANSLATION: 'ترجمة', DECORATION: 'ديكور', PHOTOGRAPHY: 'تصوير',
+      VIDEO: 'فيديو', CATERING: 'ضيافة', TRANSPORT: 'نقل', SECURITY: 'أمن',
+      PRINTING: 'طباعة', TECHNICAL: 'تقني', GIFTS: 'هدايا', HOSTING: 'استضافة',
+      OTHER: 'أخرى',
+    }
+    const REC_AR: Record<string, string> = {
+      RECOMMENDED: 'موصى به', NOT_RECOMMENDED: 'غير موصى به',
+      UNDER_REVIEW: 'قيد المراجعة', BLACKLISTED: 'قائمة سوداء',
+    }
+    const headers = ['الاسم', 'نوع الخدمة', 'الجوال', 'الإيميل', 'التوصية', 'عدد الصفقات', 'إجمالي المبالغ']
+    const rows = filtered.map(s => [
+      s.name,
+      SERVICE_AR[s.serviceType] ?? s.serviceType ?? '',
+      s.phone ?? '',
+      s.email ?? '',
+      REC_AR[s.recommendation] ?? s.recommendation ?? '',
+      s.dealCount ?? 0,
+      s.totalAmount ?? 0,
+    ])
+    const csv = [headers, ...rows]
+      .map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(','))
+      .join('\n')
+    const bom = '﻿' // UTF-8 BOM for Arabic in Excel
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `suppliers-${new Date().toISOString().slice(0,10)}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
   // Inline serviceType quick-edit
   const [editingId,  setEditingId]  = useState<string | null>(null)
   const [savingId,   setSavingId]   = useState<string | null>(null)
@@ -350,6 +384,13 @@ export default function SuppliersPage() {
             </p>
           )}
         </div>
+        <button
+          onClick={exportCSV}
+          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
+          title={isRTL ? 'تصدير CSV' : 'Export CSV'}
+        >
+          ⬇ CSV
+        </button>
         <button
           onClick={() => setShowAdd(true)}
           className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
