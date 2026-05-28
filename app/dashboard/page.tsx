@@ -160,8 +160,8 @@ export default function DashboardPage() {
     )
   }
 
-  if (error || !data) {
-    return <div className="flex items-center justify-center h-64"><p className="text-red-500">{error || t.common.error}</p></div>
+  if (error || !data || data.error) {
+    return <div className="flex items-center justify-center h-64"><p className="text-red-500">{error || data?.error || t.common.error}</p></div>
   }
 
   return (

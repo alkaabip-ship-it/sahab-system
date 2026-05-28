@@ -17,8 +17,8 @@ export async function GET(
     const supplier = await prisma.supplier.findUnique({
       where: { id: params.id },
       include: {
-        bills: {
-          include: { project: true },
+        Bill: {
+          include: { Project: true },
           orderBy: { billDate: 'desc' },
         },
       },
@@ -34,8 +34,8 @@ export async function GET(
     // Unique projects from bills
     const projectMap = new Map()
     for (const bill of supplier.Bill) {
-      if (bill.project && !projectMap.has(bill.project.id)) {
-        projectMap.set(bill.project.id, bill.project)
+      if (bill.Project && !projectMap.has(bill.Project.id)) {
+        projectMap.set(bill.Project.id, bill.Project)
       }
     }
 

@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
     prisma.invoice.count({ where }),
     prisma.invoice.findMany({
       where,
-      include: { project: { select: { id: true, code: true, name: true } } },
+      include: { Project: { select: { id: true, code: true, name: true } } },
       orderBy: { invoiceDate: 'desc' },
       skip,
       take: limit,

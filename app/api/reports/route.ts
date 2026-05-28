@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
       case 'unpaid-bills': {
         const bills = await prisma.bill.findMany({
           where: { status: { in: ['UNPAID', 'PARTIAL'] } },
-          include: { Supplier: true, project: true },
+          include: { Supplier: true, Project: true },
           orderBy: { dueDate: 'asc' },
         })
         return NextResponse.json(bills)
@@ -53,7 +53,7 @@ export async function GET(req: NextRequest) {
       case 'top-suppliers': {
         const suppliers = await prisma.supplier.findMany({
           include: {
-            bills: { select: { amount: true } },
+            Bill: { select: { amount: true } },
           },
         })
         const result = suppliers

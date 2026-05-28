@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       prisma.bill.count({ where }),
       prisma.bill.findMany({
         where,
-        include: { Supplier: true, project: true },
+        include: { Supplier: true, Project: true },
         orderBy: { billDate: 'desc' },
         skip,
         take: limit,
@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
 
     let project = null
     if (projectId) {
-      project = await prisma.Project.findUnique({ where: { id: projectId } })
+      project = await prisma.project.findUnique({ where: { id: projectId } })
     }
 
     const bill = await prisma.bill.create({

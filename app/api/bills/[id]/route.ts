@@ -39,7 +39,7 @@ export async function PUT(
 
     if (projectId !== undefined) {
       if (projectId) {
-        const project = await prisma.Project.findUnique({
+        const project = await prisma.project.findUnique({
           where: { id: projectId },
         })
         if (!project) {
@@ -64,7 +64,7 @@ export async function PUT(
     const bill = await prisma.bill.update({
       where: { id: params.id },
       data: updateData,
-      include: { Supplier: true, project: true },
+      include: { Supplier: true, Project: true },
     })
 
     // Update reference_number in Zoho Books if bill has zohoId and project was linked/unlinked

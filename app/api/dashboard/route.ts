@@ -30,9 +30,9 @@ export async function GET() {
       quarterInvoices,
       companyExpenses,
     ] = await Promise.all([
-      prisma.Project.findMany({ include: { Bill: true } }),
-      prisma.bill.findMany({ include: { Supplier: true, project: true } }),
-      prisma.Supplier.findMany({ include: { Bill: true } }),
+      prisma.project.findMany({ include: { Bill: true } }),
+      prisma.bill.findMany({ include: { Supplier: true, Project: true } }),
+      prisma.supplier.findMany({ include: { Bill: true } }),
       prisma.setting.findUnique({ where: { key: 'LOW_PROFIT_THRESHOLD' } }),
       // Bills (purchases) in current quarter → input VAT
       prisma.bill.findMany({

@@ -17,7 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
       data: {
         projectId: projectId || null,
       },
-      include: { project: { select: { id: true, code: true, name: true } } },
+      include: { Project: { select: { id: true, code: true, name: true } } },
     })
 
     return NextResponse.json(invoice)
