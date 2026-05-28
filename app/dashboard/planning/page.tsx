@@ -137,26 +137,16 @@ export default function PlanningPage() {
         {/* ── Checklist reference strip ── */}
         <div className="no-print bg-slate-50 border border-slate-200 rounded-2xl p-3">
           <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2 text-center">
-            {isRTL ? '📋 تذكير — عناصر الفعالية' : '📋 Event Checklist Reminder'}
+            {p.checklistTitle}
           </p>
           <div className="flex flex-wrap gap-1.5 justify-center">
-            {[
-              ['📅','التاريخ'],['📍','الموقع'],['🖥️','حجم الشاشة'],['🏠','داخلي/خارجي'],
-              ['📺','محتوى الشاشة'],['⚡','مولّد'],['🎭','المسرح'],['🎤','ترفيه'],
-              ['🎙️','منصة'],['💺','كراسي VIP'],['👥','عدد الحضور'],['🪑','كراسي عادية'],
-              ['📋','تسجيل'],['🌿','أشجار'],['🎁','هدايا'],['🍽️','طاولة VIP'],
-              ['☕','قهوة'],['🌸','زهور'],['🏗️','ستاند معرض'],['🖨️','طباعة'],
-              ['🎪','ستارة'],['🎥','مصور فيديو'],['📸','مصور'],['🎬','فيديو وثائقي'],
-              ['🎙️','مقابلات'],['🔊','نظام صوت'],['💡','إضاءة'],['🚩','أعلام'],
-              ['🌐','ترجمة'],['🏆','جوائز'],['🖼️','خلفية تصوير'],['🎨','تصميم'],
-              ['🎞️','فيلم قصير'],['📅','الأجندة'],
-            ].map(([icon, label], i) => (
+            {(['📅','📍','🖥️','🏠','📺','⚡','🎭','🎤','🎙️','💺','👥','🪑','📋','🌿','🎁','🍽️','☕','🌸','🏗️','🖨️','🎪','🎥','📸','🎬','🎙️','🔊','💡','🚩','🌐','🏆','🖼️','🎨','🎞️','📅'] as const).map((icon, i) => (
               <span
                 key={i}
                 className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 select-none"
               >
                 <span>{icon}</span>
-                <span className="font-medium">{label}</span>
+                <span className="font-medium">{p.checklistItems[i]}</span>
               </span>
             ))}
           </div>

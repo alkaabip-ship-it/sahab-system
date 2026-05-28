@@ -20,6 +20,8 @@ const ar = {
     uploadBill: 'رفع فاتورة AI',
     communications: 'التواصل',
     eventManagement: 'إدارة الفعالية',
+    inventory: 'المخزون',
+    tasks: 'مهام الفريق',
   },
 
   common: {
@@ -391,6 +393,16 @@ const ar = {
     printFooter: 'سحاب لإدارة الفعاليات',
     currency: 'د.إ',
     suppliersCount: 'مورد',
+    checklistTitle: '📋 تذكير — عناصر الفعالية',
+    checklistItems: [
+      'التاريخ','الموقع','حجم الشاشة','داخلي/خارجي','محتوى الشاشة',
+      'مولّد','المسرح','ترفيه','منصة','كراسي VIP',
+      'عدد الحضور','كراسي عادية','تسجيل','أشجار','هدايا',
+      'طاولة VIP','قهوة','زهور','ستاند معرض','طباعة',
+      'ستارة','مصور فيديو','مصور','فيديو وثائقي','مقابلات',
+      'نظام صوت','إضاءة','أعلام','ترجمة','جوائز',
+      'خلفية تصوير','تصميم','فيلم قصير','الأجندة',
+    ],
   },
 }
 
@@ -414,6 +426,8 @@ const en: typeof ar = {
     uploadBill: 'Upload Bill AI',
     communications: 'Communications',
     eventManagement: 'Event Management',
+    inventory: 'Inventory',
+    tasks: 'Team Tasks',
   },
 
   common: {
@@ -785,6 +799,16 @@ const en: typeof ar = {
     printFooter: 'Sahab Events Management',
     currency: 'AED',
     suppliersCount: 'supplier(s)',
+    checklistTitle: '📋 Event Checklist Reminder',
+    checklistItems: [
+      'Date','Location','Screen Size','Indoor/Outdoor','Screen Content',
+      'Generator','Stage','Entertainment','Podium','VIP Chairs',
+      'Attendees','Regular Chairs','Registration','Trees','Gifts',
+      'VIP Table','Coffee','Flowers','Exhibition Stand','Printing',
+      'Curtain','Videographer','Photographer','Documentary','Interviews',
+      'Sound System','Lighting','Flags','Translation','Trophies',
+      'Photo Backdrop','Graphic Design','Short Film','Agenda',
+    ],
   },
 }
 
