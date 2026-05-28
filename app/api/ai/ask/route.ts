@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
 
     const [allProjects, allBills, allSuppliers] = await Promise.all([
       prisma.project.findMany({
-        include: { Bill: { select: { amount: true, status: true } } },
+        include: { bills: { select: { amount: true, status: true } } },
       }),
       prisma.bill.findMany({ select: { amount: true, status: true } }),
       prisma.supplier.findMany({
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     })
 
     const yearRevenue = yearProjects.reduce((s, p) => s + p.value / VAT, 0)
-    const yearCosts   = yearProjects.reduce((s, p) => s + p.Bill.reduce((x, b) => x + b.amount / VAT, 0), 0)
+    const yearCosts   = yearProjects.reduce((s, p) => s + p.bills.reduce((x, b) => x + b.amount / VAT, 0), 0)
     const yearProfit  = yearRevenue - yearCosts
     const yearMargin  = yearRevenue > 0 ? (yearProfit / yearRevenue) * 100 : 0
 
@@ -45,14 +45,14 @@ export async function POST(req: NextRequest) {
 
     const activeProjects = allProjects.filter(p => p.status === 'IN_PROGRESS' || p.status === 'CONFIRMED')
     const projectsData = allProjects.map(p => {
-      const costs  = p.Bill.reduce((s, b) => s + b.amount / VAT, 0)
+      const costs  = p.bills.reduce((s, b) => s + b.amount / VAT, 0)
       const rev    = p.value / VAT
       const margin = rev > 0 ? ((rev - costs) / rev) * 100 : 0
       return `${p.code} | ${p.name} | ${p.status} | إيرادات: ${rev.toFixed(0)} | تكاليف: ${costs.toFixed(0)} | هامش: ${margin.toFixed(1)}%`
     }).join('\n')
 
     const suppliersData = allSuppliers.map(s => {
-      const total = s.Bill.reduce((x, b) => x + b.amount, 0)
+      const total = s.bills.reduce((x, b) => x + b.amount, 0)
       return `${s.name} | ${s.serviceType} | ${s.recommendation} | إجمالي التعاملات: ${total.toFixed(0)}`
     }).join('\n')
 

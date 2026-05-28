@@ -17,8 +17,8 @@ export async function GET(
     const supplier = await prisma.supplier.findUnique({
       where: { id: params.id },
       include: {
-        Bill: {
-          include: { Project: true },
+        bills: {
+          include: { project: true },
           orderBy: { billDate: 'desc' },
         },
       },
@@ -28,14 +28,14 @@ export async function GET(
       return NextResponse.json({ error: 'المورد غير موجود' }, { status: 404 })
     }
 
-    const totalAmount = supplier.Bill.reduce((s, b) => s + b.amount, 0)
-    const paidAmount  = supplier.Bill.filter((b) => b.status === 'PAID').reduce((s, b) => s + b.amount, 0)
+    const totalAmount = supplier.bills.reduce((s, b) => s + b.amount, 0)
+    const paidAmount  = supplier.bills.filter((b) => b.status === 'PAID').reduce((s, b) => s + b.amount, 0)
 
     // Unique projects from bills
     const projectMap = new Map()
-    for (const bill of supplier.Bill) {
-      if (bill.Project && !projectMap.has(bill.Project.id)) {
-        projectMap.set(bill.Project.id, bill.Project)
+    for (const bill of supplier.bills) {
+      if (bill.project && !projectMap.has(bill.project.id)) {
+        projectMap.set(bill.project.id, bill.project)
       }
     }
 

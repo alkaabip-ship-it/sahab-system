@@ -23,10 +23,10 @@ export async function GET(_: NextRequest, { params }: { params: { clientId: stri
 
     if (!project) return NextResponse.json({ error: 'المشروع غير موجود' }, { status: 404 })
 
-    const totalBills = project.Bill.reduce((s, b) => s + b.amount, 0)
-    const paidInvoices = project.Invoice.filter(i => i.status === 'PAID')
+    const totalBills = project.bills.reduce((s, b) => s + b.amount, 0)
+    const paidInvoices = project.invoices.filter(i => i.status === 'PAID')
     const totalPaid = paidInvoices.reduce((s, i) => s + i.amount, 0)
-    const totalBalance = project.Invoice.reduce((s, i) => s + i.balance, 0)
+    const totalBalance = project.invoices.reduce((s, i) => s + i.balance, 0)
 
     const progressPct = (() => {
       const s = project.status
@@ -49,7 +49,7 @@ export async function GET(_: NextRequest, { params }: { params: { clientId: stri
       totalBills,
       totalPaid,
       totalBalance,
-      invoices: project.Invoice,
+      invoices: project.invoices,
     })
   } catch (e) {
     console.error(e)

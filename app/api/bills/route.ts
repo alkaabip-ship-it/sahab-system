@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
       prisma.bill.count({ where }),
       prisma.bill.findMany({
         where,
-        include: { Supplier: true, Project: true },
+        include: { supplier: true, project: true },
         orderBy: { billDate: 'desc' },
         skip,
         take: limit,

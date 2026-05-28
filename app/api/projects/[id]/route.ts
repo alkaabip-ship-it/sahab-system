@@ -18,7 +18,7 @@ export async function GET(
       where: { id: params.id },
       include: {
         bills: {
-          include: { Supplier: true },
+          include: { supplier: true },
           orderBy: { billDate: 'desc' },
         },
       },
@@ -29,7 +29,7 @@ export async function GET(
     }
 
     const VAT = 1.05
-    const costs          = project.Bill.reduce((s, b) => s + b.amount, 0)
+    const costs          = project.bills.reduce((s, b) => s + b.amount, 0)
     const revenueExVat   = project.value / VAT
     const costsExVat     = costs / VAT
     const profit         = revenueExVat - costsExVat
@@ -40,7 +40,7 @@ export async function GET(
 
     // Unique suppliers from bills
     const supplierMap = new Map()
-    for (const bill of project.Bill) {
+    for (const bill of project.bills) {
       if (bill.supplier && !supplierMap.has(bill.supplier.id)) {
         supplierMap.set(bill.supplier.id, {
           ...bill.supplier,

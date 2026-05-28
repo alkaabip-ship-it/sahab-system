@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({
       success: true,
       vendors: result.vendors,
-      bills: result.Bill,
+      bills: result.bills,
       linked: result.linked,
       duration: `${((Date.now() - startedAt.getTime()) / 1000).toFixed(1)}s`,
     })

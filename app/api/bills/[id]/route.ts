@@ -64,7 +64,7 @@ export async function PUT(
     const bill = await prisma.bill.update({
       where: { id: params.id },
       data: updateData,
-      include: { Supplier: true, Project: true },
+      include: { supplier: true, project: true },
     })
 
     // Update reference_number in Zoho Books if bill has zohoId and project was linked/unlinked

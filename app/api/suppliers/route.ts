@@ -30,8 +30,8 @@ export async function GET(req: NextRequest) {
     ])
 
     const data = suppliers.map((s) => {
-      const totalAmount = s.Bill.reduce((sum, b) => sum + b.amount, 0)
-      const dealCount   = s.Bill.length
+      const totalAmount = s.bills.reduce((sum, b) => sum + b.amount, 0)
+      const dealCount   = s.bills.length
       return { ...s, totalAmount, dealCount }
     })
 

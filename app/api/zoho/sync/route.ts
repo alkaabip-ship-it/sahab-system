@@ -19,7 +19,7 @@ export async function POST() {
     return NextResponse.json({
       success: true,
       vendors: result.vendors,
-      bills: result.Bill,
+      bills: result.bills,
       linked: result.linked,
       message: `تمت المزامنة بنجاح: ${result.vendors} مورد، ${result.bills} فاتورة، ${result.linked} مرتبطة`,
     })

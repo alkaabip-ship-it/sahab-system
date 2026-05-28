@@ -279,7 +279,7 @@ export async function readFullSystemSnapshot(): Promise<SystemSnapshot> {
     // Open project issues
     prisma.projectIssue.findMany({
       where:   { status: 'OPEN' },
-      include: { Project: { select: { name: true } } },
+      include: { project: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
       take: 20,
     }),
