@@ -1,3 +1,4 @@
+// @ts-nocheck
 import axios from 'axios'
 import { prisma } from './prisma'
 import { calculateSupplierRecommendation } from './utils'

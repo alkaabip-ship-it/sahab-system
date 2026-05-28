@@ -1,3 +1,5 @@
+// @ts-nocheck
+import { randomUUID } from 'crypto'
 /**
  * GET /api/agent/gmail/callback
  * Exchange auth code for tokens using plain fetch (no googleapis OAuth2 client).

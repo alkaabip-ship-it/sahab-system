@@ -36,16 +36,16 @@ export async function GET(req: NextRequest) {
 
   const projects = await prisma.project.findMany({
     where,
-    include: { bills: { select: { amount: true } } },
+    include: { Bill: { select: { amount: true } } },
   })
 
   const VAT = 1.05
   const revenue      = projects.reduce((s, p) => s + p.value / VAT, 0)
-  const costs        = projects.reduce((s, p) => s + p.bills.reduce((bs, b) => bs + b.amount, 0) / VAT, 0)
+  const costs        = projects.reduce((s, p) => s + p.Bill.reduce((bs, b) => bs + b.amount, 0) / VAT, 0)
   const grossProfit  = revenue - costs
   const vatCollected = projects.reduce((s, p) => s + (p.value - p.value / VAT), 0)
   const vatPaid      = projects.reduce((s, p) => {
-    const c = p.bills.reduce((bs, b) => bs + b.amount, 0)
+    const c = p.Bill.reduce((bs, b) => bs + b.amount, 0)
     return s + (c - c / VAT)
   }, 0)
   const margin = revenue > 0 ? (grossProfit / revenue) * 100 : 0

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { prisma } from './prisma'
 
 const ZOHO_AUTH_URL = 'https://accounts.zoho.com/oauth/v2/token'

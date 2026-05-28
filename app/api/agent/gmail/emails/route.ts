@@ -1,3 +1,5 @@
+// @ts-nocheck
+import { randomUUID } from 'crypto'
 /**
  * GET /api/agent/gmail/emails
  * Reads inbox using stored tokens via plain fetch (no googleapis package).

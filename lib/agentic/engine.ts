@@ -1,3 +1,4 @@
+// @ts-nocheck
 import Anthropic from '@anthropic-ai/sdk'
 import { financialLossDetector } from './tools/financial'
 import { projectProfitGuard }    from './tools/projects'

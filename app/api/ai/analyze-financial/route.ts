@@ -16,23 +16,23 @@ export async function POST(req: NextRequest) {
     // Gather context: supplier history
     const supplier = await prisma.supplier.findFirst({
       where: { name: { contains: supplierName || '', mode: 'insensitive' } },
-      include: { bills: true },
+      include: { Bill: true },
     })
 
-    const supplierTotal = supplier?.bills.reduce((s, b) => s + b.amount, 0) ?? 0
-    const supplierBillCount = supplier?.bills.length ?? 0
-    const unpaidCount = supplier?.bills.filter(b => b.status === 'UNPAID' || b.status === 'PARTIAL').length ?? 0
+    const supplierTotal = supplier?.Bill.reduce((s, b) => s + b.amount, 0) ?? 0
+    const supplierBillCount = supplier?.Bill.length ?? 0
+    const unpaidCount = supplier?.Bill.filter(b => b.status === 'UNPAID' || b.status === 'PARTIAL').length ?? 0
 
     // Gather context: project financials
     let projectContext = ''
     if (projectId) {
       const project = await prisma.project.findUnique({
         where: { id: projectId },
-        include: { bills: { select: { amount: true } } },
+        include: { Bill: { select: { amount: true } } },
       })
       if (project) {
         const VAT = 1.05
-        const costs = project.bills.reduce((s, b) => s + b.amount, 0)
+        const costs = project.Bill.reduce((s, b) => s + b.amount, 0)
         const revenueExVat = project.value / VAT
         const costsExVat = costs / VAT
         const newCostExVat = (amount || 0) / VAT
@@ -50,11 +50,11 @@ export async function POST(req: NextRequest) {
     // Company-wide stats
     const [allBills, allProjects] = await Promise.all([
       prisma.bill.findMany({ select: { amount: true, status: true } }),
-      prisma.project.findMany({ include: { bills: { select: { amount: true } } } }),
+      prisma.project.findMany({ include: { Bill: { select: { amount: true } } } }),
     ])
     const VAT = 1.05
     const totalRevenue = allProjects.reduce((s, p) => s + p.value / VAT, 0)
-    const totalCosts = allProjects.reduce((s, p) => s + p.bills.reduce((x, b) => x + b.amount / VAT, 0), 0)
+    const totalCosts = allProjects.reduce((s, p) => s + p.Bill.reduce((x, b) => x + b.amount / VAT, 0), 0)
     const totalUnpaid = allBills.filter(b => b.status === 'UNPAID' || b.status === 'PARTIAL').reduce((s, b) => s + b.amount, 0)
 
     const prompt = `أنت مستشار مالي لشركة سحاب لإدارة الفعاليات في الإمارات.
