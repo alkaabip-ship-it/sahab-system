@@ -9,6 +9,7 @@ import {
   HiArrowPath, HiPaperAirplane, HiXMark, HiChevronUp,
   HiEnvelope, HiLink, HiLinkSlash, HiClipboard,
   HiPaperClip, HiDocument,
+  HiMicrophone, HiStopCircle,
 } from 'react-icons/hi2'
 
 // ── Types ─────────────────────────────────────────────────────────────
@@ -159,6 +160,20 @@ export default function AgentPage() {
   // File attachment
   const [attachedFile, setAttachedFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Voice input
+  const [isRecording, setIsRecording]   = useState(false)
+  const [voiceSupported, setVoiceSupported] = useState(false)
+  const recognitionRef  = useRef<any>(null)
+  const voicePrefixRef  = useRef('')
+
+  // Check voice support
+  useEffect(() => {
+    setVoiceSupported(!!(
+      (typeof window !== 'undefined') &&
+      ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+    ))
+  }, [])
 
   // Admin guard
   useEffect(() => {
@@ -330,9 +345,45 @@ export default function AgentPage() {
     finally   { setSendingChecklist(null) }
   }
 
+  // ── Voice ───────────────────────────────────────────────────────────
+  function startVoice() {
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) return
+
+    // Save existing input as prefix so voice appends to it
+    voicePrefixRef.current = chatInput.trim() ? chatInput.trim() + ' ' : ''
+
+    const recognition = new SR()
+    recognition.lang         = 'ar-AE'
+    recognition.continuous   = true
+    recognition.interimResults = true
+
+    recognition.onresult = (event: any) => {
+      let transcript = ''
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript
+      }
+      setChatInput(voicePrefixRef.current + transcript)
+    }
+
+    recognition.onend   = () => setIsRecording(false)
+    recognition.onerror = () => setIsRecording(false)
+
+    recognitionRef.current = recognition
+    recognition.start()
+    setIsRecording(true)
+  }
+
+  function stopVoice() {
+    recognitionRef.current?.stop()
+    setIsRecording(false)
+  }
+
   async function handleChat(e: React.FormEvent) {
     e.preventDefault()
     if ((!chatInput.trim() && !attachedFile) || chatLoading) return
+    // Stop recording if still active
+    if (isRecording) stopVoice()
 
     const userMsg = chatInput.trim()
     const file    = attachedFile
@@ -981,13 +1032,40 @@ export default function AgentPage() {
               <HiPaperClip size={18} />
             </button>
 
+            {/* Mic button */}
+            {voiceSupported && (
+              <button
+                type="button"
+                onClick={isRecording ? stopVoice : startVoice}
+                disabled={chatLoading}
+                title={isRecording ? 'إيقاف التسجيل' : 'تحدث بالصوت (عربي)'}
+                className={`flex items-center justify-center w-10 h-10 rounded-xl border transition-all flex-shrink-0 disabled:opacity-50 ${
+                  isRecording
+                    ? 'bg-red-500 border-red-400 text-white shadow-lg shadow-red-200 animate-pulse'
+                    : 'border-slate-200 text-slate-500 hover:bg-slate-100 bg-slate-50'
+                }`}
+              >
+                {isRecording ? <HiStopCircle size={18} /> : <HiMicrophone size={18} />}
+              </button>
+            )}
+
             <input
               type="text"
               value={chatInput}
               onChange={e => setChatInput(e.target.value)}
-              placeholder={attachedFile ? 'أضف تعليقاً على الملف (اختياري)...' : 'اسأل عن أي شيء، أو أرفق ملفاً لتحليله...'}
+              placeholder={
+                isRecording
+                  ? '🔴 جاري الاستماع... تحدث الآن'
+                  : attachedFile
+                  ? 'أضف تعليقاً على الملف (اختياري)...'
+                  : 'اسأل عن أي شيء، أو استخدم الميكروفون...'
+              }
               disabled={chatLoading}
-              className="flex-1 border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:opacity-60 bg-slate-50"
+              className={`flex-1 border rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 disabled:opacity-60 ${
+                isRecording
+                  ? 'border-red-300 bg-red-50 text-slate-700 ring-2 ring-red-200'
+                  : 'border-slate-200 bg-slate-50'
+              }`}
             />
             <button
               type="submit"
