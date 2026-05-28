@@ -19,9 +19,9 @@ export async function POST(req: NextRequest) {
       include: { bills: true },
     })
 
-    const supplierTotal = supplier?.Bill.reduce((s, b) => s + b.amount, 0) ?? 0
-    const supplierBillCount = supplier?.Bill.length ?? 0
-    const unpaidCount = supplier?.Bill.filter(b => b.status === 'UNPAID' || b.status === 'PARTIAL').length ?? 0
+    const supplierTotal = supplier?.bills.reduce((s, b) => s + b.amount, 0) ?? 0
+    const supplierBillCount = supplier?.bills.length ?? 0
+    const unpaidCount = supplier?.bills.filter(b => b.status === 'UNPAID' || b.status === 'PARTIAL').length ?? 0
 
     // Gather context: project financials
     let projectContext = ''
