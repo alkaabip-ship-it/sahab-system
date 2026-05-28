@@ -401,7 +401,7 @@ const ar = {
       'طاولة VIP','قهوة','زهور','ستاند معرض','طباعة',
       'ستارة','مصور فيديو','مصور','فيديو وثائقي','مقابلات',
       'نظام صوت','إضاءة','أعلام','ترجمة','جوائز',
-      'خلفية تصوير','تصميم','فيلم قصير','الأجندة',
+      'خلفية تصوير','تصميم','فيلم قصير','الأجندة','دروع',
     ],
   },
 }
@@ -807,7 +807,7 @@ const en: typeof ar = {
       'VIP Table','Coffee','Flowers','Exhibition Stand','Printing',
       'Curtain','Videographer','Photographer','Documentary','Interviews',
       'Sound System','Lighting','Flags','Translation','Trophies',
-      'Photo Backdrop','Graphic Design','Short Film','Agenda',
+      'Photo Backdrop','Graphic Design','Short Film','Agenda','Shields',
     ],
   },
 }

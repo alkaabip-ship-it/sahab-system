@@ -140,7 +140,7 @@ export default function PlanningPage() {
             {p.checklistTitle}
           </p>
           <div className="flex flex-wrap gap-1.5 justify-center">
-            {(['📅','📍','🖥️','🏠','📺','⚡','🎭','🎤','🎙️','💺','👥','🪑','📋','🌿','🎁','🍽️','☕','🌸','🏗️','🖨️','🎪','🎥','📸','🎬','🎙️','🔊','💡','🚩','🌐','🏆','🖼️','🎨','🎞️','📅'] as const).map((icon, i) => (
+            {(['📅','📍','🖥️','🏠','📺','⚡','🎭','🎤','🎙️','💺','👥','🪑','📋','🌿','🎁','🍽️','☕','🌸','🏗️','🖨️','🎪','🎥','📸','🎬','🎙️','🔊','💡','🚩','🌐','🏆','🖼️','🎨','🎞️','📅','🛡️'] as const).map((icon, i) => (
               <span
                 key={i}
                 className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 select-none"
