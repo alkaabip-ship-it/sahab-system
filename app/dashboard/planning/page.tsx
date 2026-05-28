@@ -134,8 +134,36 @@ export default function PlanningPage() {
 
       <div className="max-w-5xl mx-auto space-y-4" dir={isRTL ? 'rtl' : 'ltr'}>
 
+        {/* ── Checklist reference strip ── */}
+        <div className="no-print bg-slate-50 border border-slate-200 rounded-2xl p-3">
+          <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-widest mb-2 text-center">
+            {isRTL ? '📋 تذكير — عناصر الفعالية' : '📋 Event Checklist Reminder'}
+          </p>
+          <div className="flex flex-wrap gap-1.5 justify-center">
+            {[
+              ['📅','التاريخ'],['📍','الموقع'],['🖥️','حجم الشاشة'],['🏠','داخلي/خارجي'],
+              ['📺','محتوى الشاشة'],['⚡','مولّد'],['🎭','المسرح'],['🎤','ترفيه'],
+              ['🎙️','منصة'],['💺','كراسي VIP'],['👥','عدد الحضور'],['🪑','كراسي عادية'],
+              ['📋','تسجيل'],['🌿','أشجار'],['🎁','هدايا'],['🍽️','طاولة VIP'],
+              ['☕','قهوة'],['🌸','زهور'],['🏗️','ستاند معرض'],['🖨️','طباعة'],
+              ['🎪','ستارة'],['🎥','مصور فيديو'],['📸','مصور'],['🎬','فيديو وثائقي'],
+              ['🎙️','مقابلات'],['🔊','نظام صوت'],['💡','إضاءة'],['🚩','أعلام'],
+              ['🌐','ترجمة'],['🏆','جوائز'],['🖼️','خلفية تصوير'],['🎨','تصميم'],
+              ['🎞️','فيلم قصير'],['📅','الأجندة'],
+            ].map(([icon, label], i) => (
+              <span
+                key={i}
+                className="inline-flex items-center gap-1 bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs text-slate-600 select-none"
+              >
+                <span>{icon}</span>
+                <span className="font-medium">{label}</span>
+              </span>
+            ))}
+          </div>
+        </div>
+
         {/* ── Action bar ── */}
-        <div className="flex items-center justify-between flex-wrap gap-2 no-print">
+        <div className="flex flex-wrap items-center justify-between gap-2 no-print">
           <div className="flex items-center gap-2">
             <button
               onClick={newPlan}
@@ -439,7 +467,7 @@ export default function PlanningPage() {
 
           {/* ── Items table ── */}
           {items.length > 0 ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
 
               {/* Table header */}
               <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
