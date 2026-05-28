@@ -28,6 +28,7 @@ export default function PlanningPage() {
   const [saving,        setSaving]        = useState(false)
   const [savedMsg,      setSavedMsg]      = useState(false)
   const [editingNotes,  setEditingNotes]  = useState<string | null>(null)
+  const [editingQuote,  setEditingQuote]  = useState<string | null>(null)
 
   // Derived financials
   const sale     = typeof saleValue === 'number' ? saleValue : 0
@@ -76,6 +77,11 @@ export default function PlanningPage() {
   function removeItem(id: string) { setItems(prev => prev.filter(i => i.id !== id)) }
   function updateNotes(id: string, notes: string) {
     setItems(prev => prev.map(i => i.id === id ? { ...i, notes: notes.trim() || undefined } : i))
+  }
+  function updateQuote(id: string, raw: string) {
+    const val = parseFloat(raw.replace(/,/g, ''))
+    setItems(prev => prev.map(i => i.id === id ? { ...i, quote: isNaN(val) ? i.quote : val } : i))
+    setEditingQuote(null)
   }
 
   async function handleSave() {
@@ -512,9 +518,29 @@ export default function PlanningPage() {
                             {item.serviceType}
                           </span>
                         </td>
-                        <td className="px-5 py-3.5 text-end font-semibold text-slate-700 tabular-nums">
-                          {fmt(item.quote)}
-                          <span className="text-slate-400 font-normal text-xs ms-1">{p.currency}</span>
+                        <td className="px-5 py-3.5 text-end">
+                          {editingQuote === item.id ? (
+                            <input
+                              autoFocus
+                              type="number"
+                              defaultValue={item.quote}
+                              onBlur={e  => updateQuote(item.id, e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter')  updateQuote(item.id, (e.target as HTMLInputElement).value)
+                                if (e.key === 'Escape') setEditingQuote(null)
+                              }}
+                              className="w-32 text-end border border-sky-300 rounded-lg px-2 py-1 text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-400 tabular-nums"
+                            />
+                          ) : (
+                            <span
+                              onClick={() => setEditingQuote(item.id)}
+                              title={isRTL ? 'اضغط للتعديل' : 'Click to edit'}
+                              className="font-semibold text-slate-700 tabular-nums cursor-text rounded px-1 py-0.5 hover:bg-sky-50 hover:text-sky-700 transition-colors"
+                            >
+                              {fmt(item.quote)}
+                              <span className="text-slate-400 font-normal text-xs ms-1">{p.currency}</span>
+                            </span>
+                          )}
                         </td>
                         <td className="px-3 py-3.5 no-print">
                           <button
