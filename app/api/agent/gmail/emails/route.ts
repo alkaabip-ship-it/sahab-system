@@ -30,11 +30,11 @@ async function getValidAccessToken(): Promise<string | null> {
   const data = await res.json()
   if (!data.access_token) return null
 
-  // Cache new access token
+  // Cache new access token — id required (no @default in schema)
   await prisma.setting.upsert({
     where:  { key: 'gmail_access_token' },
     update: { value: data.access_token },
-    create: { key: 'gmail_access_token', value: data.access_token },
+    create: { id: 'gmail_access_token', key: 'gmail_access_token', value: data.access_token },
   })
   return data.access_token
 }

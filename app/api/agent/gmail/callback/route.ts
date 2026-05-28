@@ -45,22 +45,22 @@ export async function GET(req: NextRequest) {
     const profile = await profileRes.json()
     const email   = profile.emailAddress ?? 'unknown'
 
-    // Persist
+    // Persist — id required (no @default in schema), use key as stable id
     await prisma.setting.upsert({
       where:  { key: 'gmail_refresh_token' },
       update: { value: tokens.refresh_token },
-      create: { key: 'gmail_refresh_token', value: tokens.refresh_token },
+      create: { id: 'gmail_refresh_token', key: 'gmail_refresh_token', value: tokens.refresh_token },
     })
     await prisma.setting.upsert({
       where:  { key: 'gmail_email' },
       update: { value: email },
-      create: { key: 'gmail_email', value: email },
+      create: { id: 'gmail_email', key: 'gmail_email', value: email },
     })
     // Store access token too (for immediate use without re-auth)
     await prisma.setting.upsert({
       where:  { key: 'gmail_access_token' },
       update: { value: tokens.access_token },
-      create: { key: 'gmail_access_token', value: tokens.access_token },
+      create: { id: 'gmail_access_token', key: 'gmail_access_token', value: tokens.access_token },
     })
 
     return NextResponse.redirect(`${base}/dashboard/agent?gmail=connected`)
