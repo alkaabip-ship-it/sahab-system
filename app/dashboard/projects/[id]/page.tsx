@@ -44,6 +44,14 @@ export default function ProjectDetailPage() {
   const [confirmDelete, setConfirmDelete]   = useState(false)
   const [unlinkingBill, setUnlinkingBill]   = useState<string | null>(null)
 
+  // Bill search & link
+  const [billSearchName,    setBillSearchName]    = useState('')
+  const [billSearchAmount,  setBillSearchAmount]  = useState('')
+  const [billSearchResults, setBillSearchResults] = useState<any[]>([])
+  const [billSearchLoading, setBillSearchLoading] = useState(false)
+  const [billSearchDone,    setBillSearchDone]    = useState(false)
+  const [linkingBillId,     setLinkingBillId]     = useState<string | null>(null)
+
   async function loadProject() {
     const res = await fetch(`/api/projects/${id}`)
     const data = await res.json()
@@ -84,6 +92,42 @@ export default function ProjectDetailPage() {
       setDeleting(false)
       setConfirmDelete(false)
     }
+  }
+
+  async function searchBills() {
+    if (!billSearchName.trim() && !billSearchAmount.trim()) return
+    setBillSearchLoading(true)
+    setBillSearchDone(false)
+    const params = new URLSearchParams()
+    if (billSearchName.trim()) params.set('search', billSearchName.trim())
+    if (billSearchAmount.trim()) {
+      const amt = parseFloat(billSearchAmount)
+      if (!isNaN(amt)) {
+        // ±10% tolerance
+        params.set('minAmount', String(Math.floor(amt * 0.9)))
+        params.set('maxAmount', String(Math.ceil(amt * 1.1)))
+      }
+    }
+    const res  = await fetch(`/api/bills?${params.toString()}&limit=20`)
+    const data = await res.json()
+    // Exclude bills already linked to THIS project
+    const results = (data.data || []).filter((b: any) => b.projectId !== id)
+    setBillSearchResults(results)
+    setBillSearchLoading(false)
+    setBillSearchDone(true)
+  }
+
+  async function handleLinkBill(billId: string) {
+    setLinkingBillId(billId)
+    await fetch(`/api/bills/${billId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: id, isLinked: true }),
+    })
+    await loadProject()
+    // Remove from search results
+    setBillSearchResults(prev => prev.filter(b => b.id !== billId))
+    setLinkingBillId(null)
   }
 
   async function handleUnlinkBill(billId: string) {
@@ -333,9 +377,78 @@ export default function ProjectDetailPage() {
         <div className="p-5">
           {/* Bills Tab */}
           {tab === 'bills' && (
-            <div>
+            <div className="space-y-5">
+
+              {/* ── Search & Link Section ── */}
+              <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-slate-600">🔍 بحث وربط فاتورة بالمشروع</p>
+                <div className="flex flex-wrap gap-2">
+                  <input
+                    type="text"
+                    placeholder="اسم المورد أو رقم الفاتورة..."
+                    value={billSearchName}
+                    onChange={e => setBillSearchName(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && searchBills()}
+                    className="flex-1 min-w-[160px] border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                  />
+                  <input
+                    type="number"
+                    placeholder="المبلغ (د.إ)..."
+                    value={billSearchAmount}
+                    onChange={e => setBillSearchAmount(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && searchBills()}
+                    className="w-36 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white"
+                  />
+                  <button
+                    onClick={searchBills}
+                    disabled={billSearchLoading || (!billSearchName.trim() && !billSearchAmount.trim())}
+                    className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm rounded-lg transition-all disabled:opacity-40 whitespace-nowrap"
+                  >
+                    {billSearchLoading ? '...' : 'بحث'}
+                  </button>
+                </div>
+
+                {/* Search results */}
+                {billSearchDone && (
+                  billSearchResults.length === 0 ? (
+                    <p className="text-xs text-slate-400 text-center py-2">لا توجد نتائج مطابقة</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-64 overflow-y-auto">
+                      {billSearchResults.map((b: any) => (
+                        <div
+                          key={b.id}
+                          className="flex items-center justify-between bg-white border border-slate-100 rounded-lg px-3 py-2 gap-3"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-medium text-slate-700">{b.supplier?.name || '—'}</span>
+                            <span className="mx-2 text-slate-300">|</span>
+                            <span className="text-xs text-slate-400 font-mono">{b.billNumber}</span>
+                            {b.projectId && (
+                              <span className="mr-2 text-xs text-amber-500">مرتبطة بمشروع آخر</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <span className="text-sm font-bold text-slate-800 whitespace-nowrap">
+                              {formatNum(b.amount)} <span className="text-xs font-normal text-slate-400">د.إ</span>
+                            </span>
+                            <button
+                              onClick={() => handleLinkBill(b.id)}
+                              disabled={linkingBillId === b.id}
+                              className="text-xs px-3 py-1 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-all disabled:opacity-40 whitespace-nowrap"
+                            >
+                              {linkingBillId === b.id ? '...' : '⛓ ربط'}
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )
+                )}
+              </div>
+
+              {/* ── Linked Bills Table ── */}
               {project.bills?.length === 0 ? (
-                <p className="text-center text-slate-400 py-8">لا توجد فواتير</p>
+                <p className="text-center text-slate-400 py-8">لا توجد فواتير مرتبطة</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">

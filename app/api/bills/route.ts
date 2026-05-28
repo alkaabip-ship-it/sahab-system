@@ -18,12 +18,31 @@ export async function GET(req: NextRequest) {
     const supplierId = searchParams.get('supplierId')
     const projectId = searchParams.get('projectId')
 
+    const search    = searchParams.get('search')    || ''
+    const minAmount = searchParams.get('minAmount')
+    const maxAmount = searchParams.get('maxAmount')
+
     const where: any = {}
 
     if (unlinked) where.isLinked = false
     if (unpaid) where.status = { in: ['UNPAID', 'PARTIAL'] }
     if (supplierId) where.supplierId = supplierId
     if (projectId) where.projectId = projectId
+
+    // Search by supplier name or bill number
+    if (search) {
+      where.OR = [
+        { supplier: { name: { contains: search, mode: 'insensitive' } } },
+        { billNumber: { contains: search, mode: 'insensitive' } },
+      ]
+    }
+
+    // Filter by amount range
+    if (minAmount || maxAmount) {
+      where.amount = {}
+      if (minAmount) where.amount.gte = parseFloat(minAmount)
+      if (maxAmount) where.amount.lte = parseFloat(maxAmount)
+    }
 
     const page  = Math.max(1, parseInt(searchParams.get('page')  || '1'))
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get('limit') || '25')))
