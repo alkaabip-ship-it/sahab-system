@@ -187,8 +187,8 @@ model Task {
   assignedToId                 String?
   createdById                  String?
   taskDate                     String?
-  User_Task_assignedToIdToUser User?     @relation("Task_assignedToIdToUser", fields: [assignedToId], references: [id], onUpdate: NoAction)
-  User_Task_createdByIdToUser  User?     @relation("Task_createdByIdToUser", fields: [createdById], references: [id], onUpdate: NoAction)
+  assignedTo                   User?     @relation("Task_assignedToIdToUser", fields: [assignedToId], references: [id], onUpdate: NoAction)
+  createdBy                    User?     @relation("Task_createdByIdToUser", fields: [createdById], references: [id], onUpdate: NoAction)
   project                      Project?  @relation(fields: [projectId], references: [id])
 
   @@index([assignedToId])
@@ -205,8 +205,8 @@ model User {
   permissions                  String?
   createdAt                    DateTime   @default(now())
   loginLogs                    LoginLog[]
-  Task_Task_assignedToIdToUser Task[]     @relation("Task_assignedToIdToUser")
-  Task_Task_createdByIdToUser  Task[]     @relation("Task_createdByIdToUser")
+  assignedTasks                Task[]     @relation("Task_assignedToIdToUser")
+  createdTasks                 Task[]     @relation("Task_createdByIdToUser")
 }
 
 model ZohoSyncLog {

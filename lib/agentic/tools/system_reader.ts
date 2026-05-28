@@ -224,7 +224,7 @@ export async function readFullSystemSnapshot(): Promise<SystemSnapshot> {
     prisma.supplier.findMany({
       include: {
         issues:      { where: { status: 'OPEN' }, select: { id: true } },
-        evaluations: { select: { id: true } },
+        supplierEvals: { select: { id: true } },
       },
       orderBy: { name: 'asc' },
     }),
@@ -404,7 +404,7 @@ export async function readFullSystemSnapshot(): Promise<SystemSnapshot> {
     serviceType:     s.serviceType,
     recommendation:  s.recommendation,
     openIssues:      s.issues.length,
-    evaluationCount: s.evaluations.length,
+    evaluationCount: s.supplierEvals.length,
   }))
 
   const recentEvaluations = evaluations.map(e => ({
