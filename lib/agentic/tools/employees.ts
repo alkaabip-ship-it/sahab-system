@@ -7,6 +7,8 @@
  *  2. CLIENT_RENEWAL    — re-engage past clients before they go to competitors
  *  3. NEW_LEADS         — professional BD: venues, corporates, govt, agencies
  *  4. CONTENT_MARKETING — professional content: case studies, LinkedIn, newsletter
+ *
+ * Each eligible team member receives up to 7 tasks per day.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -16,10 +18,10 @@ function todayUAE(): string {
 }
 
 const COMPANY = 'سحاب للفعاليات والمعارض'
+const DAILY_TARGET = 7   // tasks per employee per day
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY 1 — Invoice Follow-up (تحصيل الفواتير)
-// Real unpaid invoices → call/email client to collect
 // ─────────────────────────────────────────────────────────────────────────────
 function makeInvoiceCallTask(clientName: string, balance: number, invoiceNumber: string, daysOverdue: number): string {
   const urgency = daysOverdue > 60 ? '🔴 عاجل جداً' : daysOverdue > 30 ? '🟠 عاجل' : '🟡 متابعة'
@@ -30,9 +32,12 @@ function makeInvoiceEmailTask(clientName: string, balance: number, invoiceNumber
   return `أرسل بريداً رسمياً لـ "${clientName}" بشأن الرصيد المستحق ${Math.round(balance).toLocaleString()} د.إ (فاتورة ${invoiceNumber}) — اذكر الجدول الزمني للسداد وعرض تسهيلات إذا لزم`
 }
 
+function makeInvoiceWhatsAppTask(clientName: string, balance: number, invoiceNumber: string): string {
+  return `أرسل رسالة واتساب مهذّبة لـ "${clientName}" بخصوص الفاتورة ${invoiceNumber} بمبلغ ${Math.round(balance).toLocaleString()} د.إ — ذكّرهم بموعد السداد وأكد استعدادك للتسهيل`
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY 2 — Past Client Re-engagement (تجديد العلاقات)
-// Clients with completed projects → renew relationship before they forget us
 // ─────────────────────────────────────────────────────────────────────────────
 function makeClientRenewalCall(clientName: string, lastProject: string): string {
   return `اتصل بـ "${clientName}" لتجديد العلاقة — تذكّرهم بنجاح "${lastProject}" واستفسر عن فعالياتهم القادمة هذا الموسم، سجّل ملاحظاتهم وأي فرصة محتملة`
@@ -46,9 +51,16 @@ function makeProposalFollowUp(clientName: string, projectName: string): string {
   return `تابع مع "${clientName}" بشأن عرض السعر المقدَّم لـ "${projectName}" — استفسر عن قرارهم وقدّم أي تعديلات مطلوبة لإتمام الصفقة`
 }
 
+function makeReferralOutreach(clientName: string, lastProject: string): string {
+  return `اتصل بـ "${clientName}" واطلب منهم إحالة شركاء أعمال أو معارف يحتاجون تنظيم فعاليات — ذكّرهم بنجاح "${lastProject}" كمرجع`
+}
+
+function makeUpsellCall(clientName: string, lastProject: string): string {
+  return `اتصل بـ "${clientName}" وعرّفهم بخدمات ${COMPANY} الجديدة — يمكن توسعة "${lastProject}" أو تنظيم فعالية موازية بتكلفة أقل كعميل قديم`
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY 3 — New Leads (اكتساب عملاء جدد)
-// Professional BD methods: venues, corporate, government, agencies
 // ─────────────────────────────────────────────────────────────────────────────
 const VENUE_TYPES = ['فنادق', 'قاعات مؤتمرات', 'مراكز تسوق', 'منتجعات', 'مراكز أعمال', 'مراكز مجتمعية']
 const UAE_AREAS   = ['دبي', 'أبوظبي', 'الشارقة', 'عجمان', 'رأس الخيمة', 'الفجيرة', 'أم القيوين']
@@ -94,10 +106,6 @@ function makeLinkedInProspecting(): string {
   return `ابحث على LinkedIn عن مدراء فعاليات وتسويق في الإمارات وتواصل مع 10 منهم بطلب اتصال مهني مع رسالة قصيرة تعريفية عن ${COMPANY} وخبراتها`
 }
 
-function makeReferralOutreach(clientName: string, lastProject: string): string {
-  return `اتصل بـ "${clientName}" واطلب منهم إحالة شركاء أعمال أو معارف يحتاجون تنظيم فعاليات — ذكّرهم بنجاح "${lastProject}" كمرجع`
-}
-
 function makeExhibitionPresence(): string {
   const events = [
     'فعاليات ومعارض الأعمال في دبي وورلد ترايد سنتر',
@@ -107,9 +115,14 @@ function makeExhibitionPresence(): string {
   return `ابحث عن ${events[Math.floor(Math.random() * events.length)]} خلال الشهرين القادمين وسجّل ${COMPANY} كمشارك أو راعٍ — فرصة تشبيك مهني مباشر مع صناع القرار`
 }
 
+function makeDirectCall(): string {
+  const area = UAE_AREAS[Math.floor(Math.random() * UAE_AREAS.length)]
+  const sector = CORP_SECTORS[Math.floor(Math.random() * CORP_SECTORS.length)]
+  return `أجرِ 5 مكالمات باردة (Cold Calls) اليوم لشركات من قطاع ${sector} في ${area} — قدّم ${COMPANY} وسجّل ردود الفعل وأي اهتمام للمتابعة`
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CATEGORY 4 — Professional Content Marketing
-// Case studies, LinkedIn, newsletter — builds credibility and inbound leads
 // ─────────────────────────────────────────────────────────────────────────────
 function makeCaseStudy(project: string, client: string): string {
   return `أعدّ Case Study احترافياً لمشروع "${project}" مع ${client} — وثّق التحديات والحلول والنتائج، وانشره على الموقع وLinkedIn الشركة كمرجع يجذب عملاء جدد`
@@ -138,17 +151,33 @@ function shuffle<T>(arr: T[]): T[] {
   return arr
 }
 
+interface PoolTask {
+  title:    string
+  category: string
+  priority: 'HIGH' | 'MEDIUM'
+}
+
+/** Generate a fresh BD task on demand (used when pool runs out) */
+function generateBdTask(): PoolTask {
+  const fns = [makeVenueOutreach, makeCorporateOutreach, makeGovernmentTender, makeAgencyPartnership, makeLinkedInProspecting, makeExhibitionPresence, makeDirectCall]
+  return {
+    title:    fns[Math.floor(Math.random() * fns.length)](),
+    category: 'اكتساب عملاء جدد وتطوير الأعمال',
+    priority: 'MEDIUM',
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// MAIN: Build priority-ordered task pool from real DB data
+// MAIN: Build priority-ordered task pool → assign 7 tasks per employee
 // ─────────────────────────────────────────────────────────────────────────────
 export async function employeeTaskManager() {
-  const today      = todayUAE()
-  const oneYearAgo = new Date(); oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
+  const today          = todayUAE()
+  const oneYearAgo     = new Date(); oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1)
   const threeMonthsAgo = new Date(); threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3)
 
   // ── Parallel DB fetch ──────────────────────────────────────────────────
   const [users, overdueInvoices, pendingInvoices, completedProjects, quoteProjects] = await Promise.all([
-    // Eligible team members
+    // Eligible team members (exclude admin & infosahab)
     prisma.user.findMany({
       where: {
         role: { not: 'ADMIN' },
@@ -168,7 +197,7 @@ export async function employeeTaskManager() {
         dueDate: { lt: new Date(Date.now() - 30 * 86400000) },
       },
       orderBy: { balance: 'desc' },
-      take: 15,
+      take: 20,
     }),
 
     // Pending invoices (0–30 days overdue or no due date)
@@ -182,10 +211,10 @@ export async function employeeTaskManager() {
         ],
       },
       orderBy: { balance: 'desc' },
-      take: 10,
+      take: 15,
     }),
 
-    // Past clients (completed/in-progress projects in last year)
+    // Past clients (completed/in-progress/confirmed projects in last year)
     prisma.project.findMany({
       where: {
         status:    { in: ['COMPLETED', 'IN_PROGRESS', 'CONFIRMED'] },
@@ -193,10 +222,10 @@ export async function employeeTaskManager() {
       },
       select: { id: true, name: true, clientName: true, status: true, value: true },
       orderBy: { createdAt: 'desc' },
-      take: 25,
+      take: 30,
     }),
 
-    // Quotes pending (potential to close)
+    // Quotes pending (close the deal)
     prisma.project.findMany({
       where: {
         status:    'QUOTE',
@@ -204,112 +233,107 @@ export async function employeeTaskManager() {
       },
       select: { name: true, clientName: true, value: true },
       orderBy: { value: 'desc' },
-      take: 10,
+      take: 15,
     }),
   ])
 
   if (users.length === 0) return { created: 0, skipped: 0, reason: 'no eligible users' }
 
   // ── Build priority task pool ──────────────────────────────────────────
+  const p1: PoolTask[] = []   // Invoice follow-up  (highest)
+  const p2: PoolTask[] = []   // Client renewal
+  const p3: PoolTask[] = []   // New leads / BD
+  const p4: PoolTask[] = []   // Content marketing
 
-  const p1: string[] = []  // Invoice follow-up (highest priority)
-  const p2: string[] = []  // Client renewal
-  const p3: string[] = []  // New leads / BD
-  const p4: string[] = []  // Content marketing
-
-  // P1 — Overdue invoices (call first)
+  // P1 — Overdue invoices (call + email + whatsapp)
   for (const inv of overdueInvoices) {
     const days = inv.dueDate
       ? Math.floor((Date.now() - new Date(inv.dueDate).getTime()) / 86400000)
       : 45
-    p1.push(makeInvoiceCallTask(inv.customerName, inv.balance, inv.invoiceNumber, days))
+    p1.push({ title: makeInvoiceCallTask(inv.customerName, inv.balance, inv.invoiceNumber, days), category: 'متابعة الفواتير وتحصيل المستحقات', priority: 'HIGH' })
+    p1.push({ title: makeInvoiceWhatsAppTask(inv.customerName, inv.balance, inv.invoiceNumber), category: 'متابعة الفواتير وتحصيل المستحقات', priority: 'HIGH' })
     if (inv.balance > 5000) {
-      p1.push(makeInvoiceEmailTask(inv.customerName, inv.balance, inv.invoiceNumber))
+      p1.push({ title: makeInvoiceEmailTask(inv.customerName, inv.balance, inv.invoiceNumber), category: 'متابعة الفواتير وتحصيل المستحقات', priority: 'HIGH' })
     }
   }
 
-  // P1 — Pending invoices (email follow-up)
-  for (const inv of pendingInvoices.slice(0, 5)) {
-    p1.push(makeInvoiceEmailTask(inv.customerName, inv.balance, inv.invoiceNumber))
+  // P1 — Pending invoices (email + whatsapp)
+  for (const inv of pendingInvoices.slice(0, 8)) {
+    p1.push({ title: makeInvoiceEmailTask(inv.customerName, inv.balance, inv.invoiceNumber), category: 'متابعة الفواتير وتحصيل المستحقات', priority: 'HIGH' })
+    p1.push({ title: makeInvoiceWhatsAppTask(inv.customerName, inv.balance, inv.invoiceNumber), category: 'متابعة الفواتير وتحصيل المستحقات', priority: 'HIGH' })
   }
 
-  // P2 — Past client renewal
+  // P2 — Past client renewal (renewal call + check-in + upsell + referral)
   const uniqueClients = [...new Map(completedProjects.map(p => [p.clientName, p])).values()]
-  for (const proj of uniqueClients.slice(0, 10)) {
-    p2.push(makeClientRenewalCall(proj.clientName, proj.name))
-    p2.push(makeReferralOutreach(proj.clientName, proj.name))
+  for (const proj of uniqueClients.slice(0, 15)) {
+    p2.push({ title: makeClientRenewalCall(proj.clientName, proj.name), category: 'تجديد علاقات العملاء وإغلاق الصفقات', priority: 'HIGH' })
+    p2.push({ title: makeClientCheckIn(proj.clientName), category: 'تجديد علاقات العملاء وإغلاق الصفقات', priority: 'HIGH' })
+    p2.push({ title: makeReferralOutreach(proj.clientName, proj.name), category: 'تجديد علاقات العملاء وإغلاق الصفقات', priority: 'HIGH' })
+    p2.push({ title: makeUpsellCall(proj.clientName, proj.name), category: 'تجديد علاقات العملاء وإغلاق الصفقات', priority: 'HIGH' })
   }
 
   // P2 — Quote follow-up (close the deal)
-  for (const q of quoteProjects.slice(0, 5)) {
-    p2.push(makeProposalFollowUp(q.clientName, q.name))
-    p2.push(makeClientCheckIn(q.clientName))
+  for (const q of quoteProjects.slice(0, 10)) {
+    p2.push({ title: makeProposalFollowUp(q.clientName, q.name), category: 'تجديد علاقات العملاء وإغلاق الصفقات', priority: 'HIGH' })
+    p2.push({ title: makeClientCheckIn(q.clientName), category: 'تجديد علاقات العملاء وإغلاق الصفقات', priority: 'HIGH' })
   }
 
-  // P3 — New lead acquisition (professional methods)
-  for (let i = 0; i < 8; i++) p3.push(makeVenueOutreach())
-  for (let i = 0; i < 6; i++) p3.push(makeCorporateOutreach())
-  for (let i = 0; i < 4; i++) p3.push(makeGovernmentTender())
-  for (let i = 0; i < 4; i++) p3.push(makeAgencyPartnership())
-  for (let i = 0; i < 4; i++) p3.push(makeLinkedInProspecting())
-  for (let i = 0; i < 3; i++) p3.push(makeExhibitionPresence())
+  // P3 — New lead acquisition
+  // Generate enough to cover the team (users × 3 tasks each minimum)
+  const p3Target = Math.max(users.length * 3, 40)
+  const bdFns = [makeVenueOutreach, makeCorporateOutreach, makeGovernmentTender, makeAgencyPartnership, makeLinkedInProspecting, makeExhibitionPresence, makeDirectCall]
+  for (let i = 0; i < p3Target; i++) {
+    p3.push({ title: bdFns[i % bdFns.length](), category: 'اكتساب عملاء جدد وتطوير الأعمال', priority: 'MEDIUM' })
+  }
 
   // P4 — Content & credibility
-  for (const proj of completedProjects.slice(0, 5)) {
-    p4.push(makeCaseStudy(proj.name, proj.clientName))
-    p4.push(makeTestimonialRequest(proj.clientName, proj.name))
-    p4.push(makeLinkedInPost(proj.name, proj.clientName))
+  for (const proj of completedProjects.slice(0, 8)) {
+    p4.push({ title: makeCaseStudy(proj.name, proj.clientName), category: 'تسويق احترافي وبناء المصداقية', priority: 'MEDIUM' })
+    p4.push({ title: makeTestimonialRequest(proj.clientName, proj.name), category: 'تسويق احترافي وبناء المصداقية', priority: 'MEDIUM' })
+    p4.push({ title: makeLinkedInPost(proj.name, proj.clientName), category: 'تسويق احترافي وبناء المصداقية', priority: 'MEDIUM' })
   }
   if (completedProjects.length > 0) {
-    p4.push(makeNewsletterTask(completedProjects[0].name))
+    p4.push({ title: makeNewsletterTask(completedProjects[0].name), category: 'تسويق احترافي وبناء المصداقية', priority: 'MEDIUM' })
   }
 
-  // Shuffle within each priority tier
+  // Shuffle within each tier for variety
   shuffle(p1); shuffle(p2); shuffle(p3); shuffle(p4)
 
-  // Full pool: 40% P1 | 30% P2 | 20% P3 | 10% P4
-  const taskPool: string[] = [...p1, ...p2, ...p3, ...p4]
+  // Full pool: P1 → P2 → P3 → P4
+  const taskPool: PoolTask[] = [...p1, ...p2, ...p3, ...p4]
 
-  if (taskPool.length === 0) {
-    // Fallback to BD tasks if DB is empty
-    taskPool.push(makeVenueOutreach(), makeCorporateOutreach(), makeAgencyPartnership())
-  }
-
-  // ── Assign one task per user ──────────────────────────────────────────
+  // ── Assign up to DAILY_TARGET tasks per user ──────────────────────────
   let created = 0, skipped = 0
+  let poolIdx = 0
 
-  for (let i = 0; i < users.length; i++) {
-    const user = users[i]
-
+  for (const user of users) {
     const openCount = await prisma.task.count({
       where: { assignedToId: user.id, status: 'PENDING', taskDate: today },
     })
-    if (openCount >= 5) { skipped++; continue }
+    const needed = Math.max(0, DAILY_TARGET - openCount)
+    if (needed === 0) { skipped++; continue }
 
-    // Give each user a different task from the pool
-    const taskIndex = i % taskPool.length
-    const title     = taskPool[taskIndex]
+    for (let j = 0; j < needed; j++) {
+      // Get next task — generate fresh BD task if pool exhausted
+      const task: PoolTask = poolIdx < taskPool.length
+        ? taskPool[poolIdx]
+        : generateBdTask()
+      poolIdx++
 
-    // Determine category label
-    const category =
-      i < p1.length           ? 'متابعة الفواتير وتحصيل المستحقات' :
-      i < p1.length + p2.length ? 'تجديد علاقات العملاء وإغلاق الصفقات' :
-      i < p1.length + p2.length + p3.length ? 'اكتساب عملاء جدد وتطوير الأعمال' :
-      'تسويق احترافي وبناء المصداقية'
-
-    await prisma.task.create({
-      data: {
-        title,
-        status:      'PENDING',
-        priority:    i < p1.length ? 'HIGH' : i < p1.length + p2.length ? 'HIGH' : 'MEDIUM',
-        taskDate:    today,
-        assignedToId: user.id,
-        createdById:  user.id,
-        description: `[${category}] — مهمة مولّدة بواسطة الوكيل الذكي بناءً على بيانات النظام الحالية`,
-        notes:       category,
-      },
-    })
-    created++
+      await prisma.task.create({
+        data: {
+          title:        task.title,
+          status:       'PENDING',
+          priority:     task.priority,
+          taskDate:     today,
+          assignedToId: user.id,
+          createdById:  user.id,
+          description:  `[${task.category}] — مهمة مولّدة بواسطة الوكيل الذكي بناءً على بيانات النظام الحالية`,
+          notes:        task.category,
+        },
+      })
+      created++
+    }
   }
 
   return { created, skipped }
