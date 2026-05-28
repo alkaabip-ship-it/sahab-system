@@ -27,8 +27,10 @@ export default function PlanningPage() {
   const [currentPlanId, setCurrentPlanId] = useState<string | null>(null)
   const [saving,        setSaving]        = useState(false)
   const [savedMsg,      setSavedMsg]      = useState(false)
-  const [editingNotes,  setEditingNotes]  = useState<string | null>(null)
-  const [editingQuote,  setEditingQuote]  = useState<string | null>(null)
+  const [editingNotes,      setEditingNotes]      = useState<string | null>(null)
+  const [editingQuote,      setEditingQuote]      = useState<string | null>(null)
+  const [editingCardSale,   setEditingCardSale]   = useState<string | null>(null)  // planId
+  const [savingCardId,      setSavingCardId]      = useState<string | null>(null)
 
   // Derived financials
   const sale     = typeof saleValue === 'number' ? saleValue : 0
@@ -82,6 +84,25 @@ export default function PlanningPage() {
     const val = parseFloat(raw.replace(/,/g, ''))
     setItems(prev => prev.map(i => i.id === id ? { ...i, quote: isNaN(val) ? i.quote : val } : i))
     setEditingQuote(null)
+  }
+
+  async function saveCardSaleValue(planId: string, raw: string) {
+    setEditingCardSale(null)
+    const val = parseFloat(raw.replace(/,/g, ''))
+    if (isNaN(val)) return
+    const plan = plans.find(pl => pl.id === planId)
+    if (!plan || val === plan.saleValue) return
+    setSavingCardId(planId)
+    // Optimistic update
+    setPlans(prev => prev.map(pl => pl.id === planId ? { ...pl, saleValue: val } : pl))
+    // If this plan is currently open in the editor, sync it too
+    if (currentPlanId === planId) setSaleValue(val)
+    await fetch(`/api/planning/${planId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: plan.name, saleValue: val, items: JSON.parse(plan.items) }),
+    })
+    setSavingCardId(null)
   }
 
   async function handleSave() {
@@ -264,9 +285,33 @@ export default function PlanningPage() {
 
                       {/* Financial stats */}
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-white/10 rounded-xl p-2.5 text-center">
+                        {/* Sale value — inline editable */}
+                        <div
+                          className="bg-white/10 rounded-xl p-2.5 text-center relative group/sale"
+                          onClick={e => e.stopPropagation()}
+                        >
                           <p className="text-xs text-slate-400 mb-1">{p.saleCard}</p>
-                          <p className="text-sm font-bold text-white tabular-nums leading-none">{fmt(pl.saleValue)}</p>
+                          {editingCardSale === pl.id ? (
+                            <input
+                              autoFocus
+                              type="number"
+                              defaultValue={pl.saleValue}
+                              onBlur={e  => saveCardSaleValue(pl.id, e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === 'Enter')  saveCardSaleValue(pl.id, (e.target as HTMLInputElement).value)
+                                if (e.key === 'Escape') setEditingCardSale(null)
+                              }}
+                              className="w-full text-center bg-white/20 border border-white/40 rounded-lg px-1 py-0.5 text-sm font-bold text-white tabular-nums focus:outline-none focus:ring-2 focus:ring-white/60"
+                            />
+                          ) : (
+                            <p
+                              onClick={() => setEditingCardSale(pl.id)}
+                              title={isRTL ? 'اضغط لتعديل سعر البيع' : 'Click to edit'}
+                              className="text-sm font-bold text-white tabular-nums leading-none cursor-text rounded hover:bg-white/20 px-1 py-0.5 transition-colors"
+                            >
+                              {savingCardId === pl.id ? '...' : fmt(pl.saleValue)}
+                            </p>
+                          )}
                         </div>
                         <div className="bg-white/10 rounded-xl p-2.5 text-center">
                           <p className="text-xs text-slate-400 mb-1">{p.profitCard}</p>
