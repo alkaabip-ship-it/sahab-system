@@ -293,9 +293,10 @@ ${snap.events.upcoming.slice(0,5).map(e=>`  • ${e.name} | ${e.client} | ${e.ve
 ═══════════════════════════════════════
 📋 التخطيط — ${snap.planning.total} خطة:
   إجمالي البيع: ${snap.planning.totalSaleValue.toLocaleString()} | التكاليف: ${snap.planning.totalCost.toLocaleString()} | الربح: ${snap.planning.totalProfit.toLocaleString()} د.إ | متوسط الهامش: ${snap.planning.avgMargin}%
-${snap.planning.recentPlans.slice(0, 10).map(p =>
-  `  • ${p.name}: بيع ${p.saleValue.toLocaleString()} | تكلفة ${p.totalCost.toLocaleString()} | ربح ${p.profit.toLocaleString()} د.إ (${p.margin}%) | ${p.suppliersCount} مورد`
+${snap.planning.recentPlans.slice(0, 15).map(p =>
+  `  • "${p.name}" [${p.createdAt}]: بيع ${p.saleValue.toLocaleString()} | تكلفة ${p.totalCost.toLocaleString()} | هامش ${p.margin}%\n    الموردون: ${p.items.map(i => `${i.serviceType}:${i.supplierName}(${i.quote.toLocaleString()})`).join(' | ') || 'لا عناصر'}`
 ).join('\n') || '  لا توجد خطط'}
+${Object.keys(snap.planning.serviceBenchmarks).length > 0 ? `\n  معيار أسعار الخدمات من التاريخ:\n${Object.entries(snap.planning.serviceBenchmarks).map(([st, b]) => `    ${st}: متوسط ${b.avgQuote.toLocaleString()} | نطاق ${b.minQuote.toLocaleString()}–${b.maxQuote.toLocaleString()} د.إ (${b.count} صفقة)`).join('\n')}` : ''}
 
 ═══════════════════════════════════════
 

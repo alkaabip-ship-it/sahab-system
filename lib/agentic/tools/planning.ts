@@ -29,29 +29,41 @@ export interface PlanResult {
 }
 
 export async function createEventPlanFromMessage(userMessage: string): Promise<PlanResult | { error: string }> {
-  // ── Step 1: Extract event details from user message ────────────────────
-  const extractRes = await anthropic.messages.create({
-    model: 'claude-haiku-4-5',
-    max_tokens: 600,
-    messages: [{
-      role: 'user',
-      content: `من رسالة مدير شركة فعاليات، استخرج تفاصيل الفعالية المطلوبة وأجب بـ JSON فقط بدون أي نص آخر:
+  // ── Step 1: Extract event details + fetch context in parallel ─────────
+  const [extractRes, allSuppliers, pastPlans] = await Promise.all([
+    anthropic.messages.create({
+      model: 'claude-haiku-4-5',
+      max_tokens: 600,
+      messages: [{
+        role: 'user',
+        content: `من رسالة مدير شركة فعاليات، استخرج تفاصيل الفعالية المطلوبة وأجب بـ JSON فقط بدون أي نص آخر:
 {
   "planName": "اسم وصفي قصير للفعالية",
   "saleValue": سعر_البيع_الإجمالي_كرقم_أو_0,
+  "clientHint": "اسم العميل إن ذُكر أو null",
   "services": ["الخدمات المطلوبة بالعربي مثل: صوتيات، إضاءة، شاشات، كراسي، خيمة، طعام، تصوير، تصميم، طباعة، أمن، نقل، إلخ"]
 }
-
-قواعد:
-- إذا ذُكر سعر بيع أو ميزانية → استخدمه في saleValue
-- إذا لم يُذكر سعر → saleValue = 0
-- استنتج الخدمات من نوع الفعالية (مؤتمر، زفاف، معرض، حفلة...) وما ذُكر صراحةً
-
+قواعد: إذا ذُكر سعر بيع → استخدمه في saleValue، وإلا 0. استنتج الخدمات من نوع الفعالية وما ذُكر صراحةً.
 الرسالة: "${userMessage}"`,
-    }],
-  })
+      }],
+    }),
 
-  let details: { planName: string; saleValue: number; services: string[] } | null = null
+    prisma.supplier.findMany({
+      where:   { recommendation: { not: 'SUSPENDED' } },
+      include: {
+        bills:         { select: { amount: true } },
+        supplierEvals: { select: { performance: true, repeatBusiness: true }, orderBy: { createdAt: 'desc' }, take: 3 },
+      },
+    }),
+
+    prisma.projectPlan.findMany({
+      orderBy: { createdAt: 'desc' },
+      take:    30,
+    }),
+  ])
+
+  // Parse extraction result
+  let details: { planName: string; saleValue: number; clientHint: string | null; services: string[] } | null = null
   try {
     const txt = extractRes.content[0].type === 'text' ? extractRes.content[0].text : ''
     const m = txt.match(/\{[\s\S]*?\}/)
@@ -62,63 +74,90 @@ export async function createEventPlanFromMessage(userMessage: string): Promise<P
     return { error: 'تعذّر استخراج تفاصيل الفعالية من رسالتك. يرجى ذكر نوع الفعالية والخدمات المطلوبة.' }
   }
 
-  // ── Step 2: Fetch active suppliers from DB ────────────────────────────
-  const allSuppliers = await prisma.supplier.findMany({
-    where:   { recommendation: { not: 'SUSPENDED' } },
-    include: {
-      bills:        { select: { amount: true } },
-      supplierEvals: { select: { performance: true, repeatBusiness: true }, orderBy: { createdAt: 'desc' }, take: 3 },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
-
   if (allSuppliers.length === 0) {
     return { error: 'لا يوجد موردون نشطون في النظام.' }
   }
 
+  // ── Step 2: Build rich context from past plans ──────────────────────
+  const pastPlansSummary = pastPlans.map(p => {
+    let items: Array<{ name?: string; serviceType?: string; quote?: number; notes?: string }> = []
+    try { items = JSON.parse(p.items) } catch { /**/ }
+    const totalCost = items.reduce((s, i) => s + (Number(i.quote) || 0), 0)
+    const margin    = p.saleValue > 0 ? +((( p.saleValue - totalCost) / p.saleValue) * 100).toFixed(1) : 0
+    return {
+      name:      p.name,
+      saleValue: p.saleValue,
+      totalCost: Math.round(totalCost),
+      margin,
+      items:     items.map(i => `${i.serviceType ?? '?'}:${i.name ?? '?'}=${(Number(i.quote) || 0).toLocaleString()}`),
+    }
+  })
+
+  // Service-type price benchmarks from ALL past plans
+  const _stQuotes: Record<string, number[]> = {}
+  for (const plan of pastPlansSummary) {
+    for (const item of plan.items) {
+      const [stPart, rest] = item.split(':')
+      const quotePart = rest?.split('=')[1]?.replace(/,/g, '')
+      const q = parseFloat(quotePart ?? '')
+      if (stPart && !isNaN(q) && q > 0) {
+        if (!_stQuotes[stPart]) _stQuotes[stPart] = []
+        _stQuotes[stPart].push(q)
+      }
+    }
+  }
+  const benchmarkLines = Object.entries(_stQuotes).map(([st, qs]) => {
+    const avg = Math.round(qs.reduce((s, q) => s + q, 0) / qs.length)
+    return `${st}: متوسط ${avg.toLocaleString()} د.إ (${Math.round(Math.min(...qs)).toLocaleString()} – ${Math.round(Math.max(...qs)).toLocaleString()}) من ${qs.length} صفقة`
+  }).join('\n')
+
+  const pastPlansContext = pastPlansSummary.length > 0
+    ? `\nالخطط السابقة للتعلم منها (${pastPlansSummary.length} خطة):\n` +
+      pastPlansSummary.slice(0, 10).map(p =>
+        `• "${p.name}" — بيع ${p.saleValue.toLocaleString()} | تكلفة ${p.totalCost.toLocaleString()} | هامش ${p.margin}%\n  الخدمات: ${p.items.join(' | ')}`
+      ).join('\n')
+    : ''
+
+  const benchmarkContext = benchmarkLines
+    ? `\nمعيار أسعار الخدمات من التاريخ:\n${benchmarkLines}`
+    : ''
+
+  // ── Step 3: Build supplier list ───────────────────────────────────────
   const supplierLines = allSuppliers.map(s => {
     const avgBill = s.bills.length > 0
       ? Math.round(s.bills.reduce((sum, b) => sum + b.amount, 0) / s.bills.length)
       : 0
-    const rating  = s.recommendation
-    const repeat  = s.supplierEvals.filter(e => e.repeatBusiness).length
-    return `ID:${s.id}|${s.name}|${s.serviceType}|تقييم:${rating}|متوسط_فاتورة:${avgBill.toLocaleString()}|تكرار:${repeat}`
+    const repeat = s.supplierEvals.filter(e => e.repeatBusiness).length
+    return `ID:${s.id}|${s.name}|${s.serviceType}|${s.recommendation}|متوسط:${avgBill.toLocaleString()}|تكرار:${repeat}`
   }).join('\n')
 
-  // ── Step 3: Let Claude pick best supplier per service + estimate cost ──
+  // ── Step 4: Let Claude pick best supplier per service + estimate cost ──
   const selectionRes = await anthropic.messages.create({
     model: 'claude-haiku-4-5',
-    max_tokens: 1200,
+    max_tokens: 1500,
     messages: [{
       role: 'user',
-      content: `أنت مخطط فعاليات محترف لشركة سحاب بالإمارات.
+      content: `أنت مخطط فعاليات محترف لشركة سحاب بالإمارات. لديك تاريخ كامل من الخطط السابقة.
 
-الفعالية: ${details.planName}
-سعر البيع الإجمالي: ${details.saleValue > 0 ? details.saleValue.toLocaleString() + ' د.إ' : 'غير محدد — قدّر تكلفة معقولة'}
+الفعالية المطلوبة: ${details.planName}${details.clientHint ? ` — العميل: ${details.clientHint}` : ''}
+سعر البيع: ${details.saleValue > 0 ? details.saleValue.toLocaleString() + ' د.إ' : 'غير محدد — قدّر بناءً على التاريخ'}
 الخدمات المطلوبة: ${details.services.join('، ')}
+${pastPlansContext}
+${benchmarkContext}
 
 قائمة الموردين المتاحين:
 ${supplierLines}
 
-مهمتك: اختر أفضل مورد لكل خدمة مطلوبة وقدّر التكلفة، ثم أجب بـ JSON مصفوفة فقط:
-[
-  {
-    "supplierId": "معرّف المورد من القائمة",
-    "supplierName": "اسم المورد",
-    "serviceType": "نوع الخدمة",
-    "quote": تكلفة_كرقم,
-    "notes": "ملاحظة اختيارية"
-  }
-]
+مهمتك: اختر أفضل مورد لكل خدمة مطلوبة وقدّر التكلفة بناءً على التاريخ، ثم أجب بـ JSON مصفوفة فقط:
+[{"supplierId":"...","supplierName":"...","serviceType":"...","quote":رقم,"notes":"ملاحظة اختيارية"}]
 
 قواعد الاختيار:
 - اختر مورداً واحداً لكل خدمة مطلوبة
-- فضّل الموردين بتقييم APPROVED أو PREFERRED وبأعلى تكرار
-- إذا لم يوجد مورد يطابق الخدمة تماماً، اختر الأقرب
-- إذا لم يوجد مورد مناسب أبداً لخدمة ما، تجاهل تلك الخدمة
-- التكلفة: استند إلى متوسط فواتير المورد كمرجع
-- إذا كان سعر البيع محدداً، التكاليف الإجمالية يجب ألا تتجاوز ${details.saleValue > 0 ? Math.round(details.saleValue * 0.75).toLocaleString() : 'حد معقول'}
-- أجب بمصفوفة JSON فقط بدون أي نص قبلها أو بعدها`,
+- فضّل APPROVED/PREFERRED وأعلى تكرار
+- إذا لم يوجد مورد مناسب لخدمة، تجاهلها
+- التكلفة: استخدم معيار الأسعار من التاريخ كمرجع أساسي
+- إذا كان سعر البيع محدداً، الإجمالي يجب ألا يتجاوز ${details.saleValue > 0 ? Math.round(details.saleValue * 0.75).toLocaleString() : 'حداً معقولاً'}
+- أجب بمصفوفة JSON فقط بدون أي نص`,
     }],
   })
 

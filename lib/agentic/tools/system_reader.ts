@@ -162,8 +162,19 @@ export interface SystemSnapshot {
     totalProfit: number
     avgMargin: number
     recentPlans: Array<{
-      name: string; saleValue: number; totalCost: number
-      profit: number; margin: number; suppliersCount: number; createdAt: string
+      name:           string
+      saleValue:      number
+      totalCost:      number
+      profit:         number
+      margin:         number
+      suppliersCount: number
+      createdAt:      string
+      // Full item breakdown — used by agent for learning & benchmarking
+      items: Array<{ supplierName: string; serviceType: string; quote: number; notes?: string }>
+    }>
+    // Price benchmarks per service type derived from all past plans
+    serviceBenchmarks: Record<string, {
+      avgQuote: number; minQuote: number; maxQuote: number; count: number
     }>
   }
 }
@@ -623,9 +634,9 @@ export async function readFullSystemSnapshot(): Promise<SystemSnapshot> {
   // COMPUTE: Planning
   // ═══════════════════════════════════════════════════════════════════════
   const plansMapped = projectPlans.map(p => {
-    let items: Array<{ quote: number }> = []
-    try { items = JSON.parse(p.items) } catch { /* invalid JSON */ }
-    const totalCost = items.reduce((s, i) => s + (Number(i.quote) || 0), 0)
+    let rawItems: Array<{ name?: string; supplierId?: string; serviceType?: string; quote?: number; notes?: string }> = []
+    try { rawItems = JSON.parse(p.items) } catch { /* invalid JSON */ }
+    const totalCost = rawItems.reduce((s, i) => s + (Number(i.quote) || 0), 0)
     const profit    = p.saleValue - totalCost
     const margin    = p.saleValue > 0 ? +((profit / p.saleValue) * 100).toFixed(1) : 0
     return {
@@ -634,17 +645,46 @@ export async function readFullSystemSnapshot(): Promise<SystemSnapshot> {
       totalCost:      Math.round(totalCost),
       profit:         Math.round(profit),
       margin,
-      suppliersCount: items.length,
+      suppliersCount: rawItems.length,
       createdAt:      p.createdAt.toISOString().split('T')[0],
+      items:          rawItems.map(i => ({
+        supplierName: i.name        ?? 'غير محدد',
+        serviceType:  i.serviceType ?? 'OTHER',
+        quote:        Number(i.quote) || 0,
+        notes:        i.notes,
+      })),
     }
   })
 
-  const planTotalSale  = plansMapped.reduce((s, p) => s + p.saleValue,  0)
-  const planTotalCost  = plansMapped.reduce((s, p) => s + p.totalCost,  0)
-  const planTotalProfit = plansMapped.reduce((s, p) => s + p.profit,    0)
-  const planAvgMargin  = plansMapped.length > 0
+  const planTotalSale   = plansMapped.reduce((s, p) => s + p.saleValue,  0)
+  const planTotalCost   = plansMapped.reduce((s, p) => s + p.totalCost,  0)
+  const planTotalProfit = plansMapped.reduce((s, p) => s + p.profit,     0)
+  const planAvgMargin   = plansMapped.length > 0
     ? +(plansMapped.reduce((s, p) => s + p.margin, 0) / plansMapped.length).toFixed(1)
     : 0
+
+  // Build price benchmarks per service type from ALL plan items
+  const _stMap: Record<string, number[]> = {}
+  for (const plan of plansMapped) {
+    for (const item of plan.items) {
+      if (item.quote > 0) {
+        if (!_stMap[item.serviceType]) _stMap[item.serviceType] = []
+        _stMap[item.serviceType].push(item.quote)
+      }
+    }
+  }
+  const serviceBenchmarks: Record<string, { avgQuote: number; minQuote: number; maxQuote: number; count: number }> =
+    Object.fromEntries(
+      Object.entries(_stMap).map(([st, quotes]) => [
+        st,
+        {
+          avgQuote: Math.round(quotes.reduce((s, q) => s + q, 0) / quotes.length),
+          minQuote: Math.round(Math.min(...quotes)),
+          maxQuote: Math.round(Math.max(...quotes)),
+          count:    quotes.length,
+        },
+      ])
+    )
 
   // ═══════════════════════════════════════════════════════════════════════
   // RETURN
@@ -747,12 +787,13 @@ export async function readFullSystemSnapshot(): Promise<SystemSnapshot> {
     },
 
     planning: {
-      total:          projectPlans.length,
-      totalSaleValue: Math.round(planTotalSale),
-      totalCost:      Math.round(planTotalCost),
-      totalProfit:    Math.round(planTotalProfit),
-      avgMargin:      planAvgMargin,
-      recentPlans:    plansMapped,
+      total:             projectPlans.length,
+      totalSaleValue:    Math.round(planTotalSale),
+      totalCost:         Math.round(planTotalCost),
+      totalProfit:       Math.round(planTotalProfit),
+      avgMargin:         planAvgMargin,
+      recentPlans:       plansMapped,
+      serviceBenchmarks,
     },
   }
 }
