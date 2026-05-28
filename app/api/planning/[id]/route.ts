@@ -11,9 +11,10 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const plan = await prisma.projectPlan.update({
     where: { id: params.id },
     data: {
-      name: name.trim(),
+      name:      name.trim(),
       saleValue: Number(saleValue) || 0,
-      items: JSON.stringify(items || []),
+      items:     JSON.stringify(items || []),
+      updatedAt: new Date(),
     },
   })
   return NextResponse.json(plan)

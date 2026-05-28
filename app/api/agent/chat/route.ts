@@ -10,6 +10,7 @@ import {
   createSpecificTask,
   getEligibleUsers,
 } from '@/lib/agentic/tools/employees'
+import { createEventPlanFromMessage } from '@/lib/agentic/tools/planning'
 
 const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
@@ -21,6 +22,19 @@ function wantsToAssignTasks(msg: string): boolean {
     'انشئ مهمة', 'أنشئ مهمة', 'إنشاء مهمة', 'كون مهمة', 'كوّن مهمة',
     'إسناد مهمة', 'توزيع مهام', 'اضف مهمة', 'أضف مهمة',
     'assign task', 'create task', 'add task',
+  ]
+  return keywords.some(k => lower.includes(k))
+}
+
+// ── Detect if the message is asking to create an event plan ─────────
+function wantsToPlan(msg: string): boolean {
+  const lower = msg.toLowerCase()
+  const keywords = [
+    'خطط', 'تخطيط', 'اعمل خطة', 'أعمل خطة', 'انشئ خطة', 'أنشئ خطة', 'إنشاء خطة',
+    'سوّي خطة', 'سوي خطة', 'جهز خطة', 'جهّز خطة', 'خطة للفعالية', 'خطة لـ',
+    'خطط للفعالية', 'خطط لفعالية', 'خطط لي', 'خطة مشروع', 'خطة المشروع',
+    'وزع الميزانية', 'اقترح موردين', 'اختر موردين', 'create plan', 'plan event',
+    'اعمل لي خطة', 'أعطني خطة',
   ]
   return keywords.some(k => lower.includes(k))
 }
@@ -144,7 +158,21 @@ export async function POST(req: NextRequest) {
   // ── Pre-execute actions based on intent ──────────────────────────────
   let actionContext = ''
 
-  if (wantsToAssignTasks(message)) {
+  if (wantsToPlan(message)) {
+    try {
+      const result = await createEventPlanFromMessage(message)
+      if ('error' in result) {
+        actionContext = `\n[نتيجة التنفيذ] ❌ ${result.error}`
+      } else {
+        actionContext = `\n[نتيجة التنفيذ] ${result.summary}\n\nتفاصيل الخطة المحفوظة:\n${result.items.map((item, i) =>
+          `${i + 1}. ${item.name} — ${item.serviceType}: ${item.quote.toLocaleString()} د.إ${item.notes ? ` (${item.notes})` : ''}`
+        ).join('\n')}\n\nيمكنك الآن فتح صفحة التخطيط لمراجعة الخطة وتعديلها إذا لزم.`
+      }
+    } catch (e: any) {
+      console.error('[chat:createPlan]', e)
+      actionContext = `\n[نتيجة التنفيذ] خطأ أثناء إنشاء الخطة: ${e.message}`
+    }
+  } else if (wantsToAssignTasks(message)) {
     try {
       const users = await getEligibleUsers()
       const employeeNames = users.map(u => u.name)
