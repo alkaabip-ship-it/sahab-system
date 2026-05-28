@@ -219,7 +219,7 @@ export default function UploadBillPage() {
           </div>
 
           {companySummary && (
-            <div className="grid grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               <div className="bg-white/10 rounded-xl p-3 text-center">
                 <p className="text-xs text-slate-400 mb-0.5">{tx.revenue}</p>
                 <p className="text-sm font-bold text-white">{formatNum(companySummary.yearRevenue)}</p>
@@ -326,7 +326,7 @@ export default function UploadBillPage() {
           {/* Editable fields */}
           <div className="bg-white rounded-xl border border-slate-100 p-5 space-y-3">
             <p className="text-sm font-semibold text-slate-700">{tx.reviewEdit}</p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-slate-500 mb-1 block">{tx.supplierName}</label>
                 <input value={form.supplierName || ''} onChange={e => setForm((p: any) => ({ ...p, supplierName: e.target.value }))}

@@ -8,138 +8,209 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
-model User {
-  id          String     @id @default(cuid())
-  name        String
-  email       String     @unique
-  password    String
-  role        String     @default("VIEWER")
-  permissions String?
-  createdAt   DateTime   @default(now())
-  loginLogs   LoginLog[]
-}
-
-model LoginLog {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  ip        String?
-  userAgent String?
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([createdAt])
-}
-
-model Project {
-  id            String    @id @default(cuid())
-  code          String    @unique
-  name          String
-  clientName    String
-  value         Float
-  executionDate DateTime?
-  status        String    @default("QUOTE")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  bills       Bill[]
-  invoices    Invoice[]
-  issues      ProjectIssue[]
-  evaluations SupplierEvaluation[]
-}
-
-model Supplier {
-  id             String   @id @default(cuid())
-  zohoId         String?  @unique
-  name           String
-  phone          String?
-  email          String?
-  serviceType    String
-  recommendation String   @default("UNDER_REVIEW")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-
-  bills       Bill[]
-  issues      ProjectIssue[]
-  evaluations SupplierEvaluation[]
-}
-
 model Bill {
-  id             String    @id @default(cuid())
-  zohoId         String?   @unique
-  billNumber     String
-  supplierId     String?
-  supplier       Supplier? @relation(fields: [supplierId], references: [id])
-  projectId      String?
-  project        Project?  @relation(fields: [projectId], references: [id])
-  amount         Float
-  billDate       DateTime
-  dueDate        DateTime?
-  status         String    @default("UNPAID")
-  attachmentUrl  String?
-  projectCode    String?
-  zohoCustomerName String? // Customer Name from Zoho Bills — used to link to project by clientName
-  isLinked       Boolean   @default(false)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  id               String    @id
+  zohoId           String?   @unique
+  billNumber       String
+  supplierId       String?
+  projectId        String?
+  amount           Float
+  billDate         DateTime
+  dueDate          DateTime?
+  status           String    @default("UNPAID")
+  attachmentUrl    String?
+  projectCode      String?
+  zohoCustomerName String?
+  isLinked         Boolean   @default(false)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime
+  Project          Project?  @relation(fields: [projectId], references: [id])
+  Supplier         Supplier? @relation(fields: [supplierId], references: [id])
 }
 
-model ProjectIssue {
-  id         String    @id @default(cuid())
-  projectId  String
-  project    Project   @relation(fields: [projectId], references: [id])
-  supplierId String?
-  supplier   Supplier? @relation(fields: [supplierId], references: [id])
-  issueType  String
-  impact     String
-  notes      String?
-  status     String    @default("OPEN")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
-}
-
-model SupplierEvaluation {
-  id             String   @id @default(cuid())
-  projectId      String
-  project        Project  @relation(fields: [projectId], references: [id])
-  supplierId     String
-  supplier       Supplier @relation(fields: [supplierId], references: [id])
-  performance    String
-  repeatBusiness Boolean
-  notes          String?
-  createdAt      DateTime @default(now())
-}
-
-model Invoice {
-  id            String    @id @default(cuid())
-  zohoId        String?   @unique
-  invoiceNumber String    @unique
-  customerName  String
-  projectId     String?
-  project       Project?  @relation(fields: [projectId], references: [id])
-  amount        Float
-  balance       Float     @default(0)
-  invoiceDate   DateTime
-  dueDate       DateTime?
-  status        String    @default("UNPAID") // PAID, UNPAID, PARTIAL, VOID
-  notes         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+model CompanyExpense {
+  id         String    @id
+  key        String    @unique
+  label      String
+  amount     Float     @default(0)
+  period     String
+  expiryDate DateTime?
 }
 
 model Customer {
-  id        String   @id @default(cuid())
+  id        String   @id
   zohoId    String?  @unique
   name      String
   phone     String?
   email     String?
   company   String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime
+}
+
+model Employee {
+  id              String    @id
+  name            String
+  salary          Float
+  residencyExpiry DateTime?
+  createdAt       DateTime  @default(now())
+}
+
+model InventoryItem {
+  id          String   @id @default(dbgenerated("(gen_random_uuid())::text"))
+  name        String
+  category    String   @default("OTHER")
+  quantity    Float    @default(0)
+  minQuantity Float    @default(0)
+  unit        String   @default("قطعة")
+  location    String?
+  condition   String   @default("GOOD")
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now())
+}
+
+model Invoice {
+  id            String    @id
+  zohoId        String?   @unique
+  invoiceNumber String    @unique
+  customerName  String
+  projectId     String?
+  amount        Float
+  balance       Float     @default(0)
+  invoiceDate   DateTime
+  dueDate       DateTime?
+  status        String    @default("UNPAID")
+  notes         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime
+  Project       Project?  @relation(fields: [projectId], references: [id])
+}
+
+model LoginLog {
+  id        String   @id
+  userId    String
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  User      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model Project {
+  id                 String               @id
+  code               String               @unique
+  name               String
+  clientName         String
+  value              Float
+  executionDate      DateTime?
+  status             String               @default("QUOTE")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  Bill               Bill[]
+  Invoice            Invoice[]
+  ProjectIssue       ProjectIssue[]
+  SupplierEvaluation SupplierEvaluation[]
+  Task               Task[]
+}
+
+model ProjectIssue {
+  id         String    @id
+  projectId  String
+  supplierId String?
+  issueType  String
+  impact     String
+  notes      String?
+  status     String    @default("OPEN")
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime
+  Project    Project   @relation(fields: [projectId], references: [id])
+  Supplier   Supplier? @relation(fields: [supplierId], references: [id])
+}
+
+model ProjectPlan {
+  id        String   @id
+  name      String
+  saleValue Float    @default(0)
+  items     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime
+}
+
+model Setting {
+  id    String @id
+  key   String @unique
+  value String
+}
+
+model Supplier {
+  id                 String               @id
+  zohoId             String?              @unique
+  name               String
+  phone              String?
+  email              String?
+  serviceType        String
+  recommendation     String               @default("UNDER_REVIEW")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime
+  Bill               Bill[]
+  ProjectIssue       ProjectIssue[]
+  SupplierEvaluation SupplierEvaluation[]
+}
+
+model SupplierEvaluation {
+  id             String   @id
+  projectId      String
+  supplierId     String
+  performance    String
+  repeatBusiness Boolean
+  notes          String?
+  createdAt      DateTime @default(now())
+  Project        Project  @relation(fields: [projectId], references: [id])
+  Supplier       Supplier @relation(fields: [supplierId], references: [id])
+}
+
+model Task {
+  id                           String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  title                        String
+  description                  String?
+  status                       String    @default("PENDING")
+  priority                     String    @default("MEDIUM")
+  assignee                     String?
+  projectId                    String?
+  dueDate                      DateTime?
+  createdAt                    DateTime  @default(now())
+  updatedAt                    DateTime  @default(now())
+  notes                        String?
+  assignedToId                 String?
+  createdById                  String?
+  taskDate                     String?
+  User_Task_assignedToIdToUser User?     @relation("Task_assignedToIdToUser", fields: [assignedToId], references: [id], onUpdate: NoAction)
+  User_Task_createdByIdToUser  User?     @relation("Task_createdByIdToUser", fields: [createdById], references: [id], onUpdate: NoAction)
+  Project                      Project?  @relation(fields: [projectId], references: [id])
+
+  @@index([assignedToId])
+  @@index([createdById])
+  @@index([taskDate])
+}
+
+model User {
+  id                           String     @id
+  name                         String
+  email                        String     @unique
+  password                     String
+  role                         String     @default("VIEWER")
+  permissions                  String?
+  createdAt                    DateTime   @default(now())
+  LoginLog                     LoginLog[]
+  Task_Task_assignedToIdToUser Task[]     @relation("Task_assignedToIdToUser")
+  Task_Task_createdByIdToUser  Task[]     @relation("Task_createdByIdToUser")
 }
 
 model ZohoSyncLog {
-  id          String   @id @default(cuid())
+  id          String   @id
   syncType    String
   status      String
   message     String?
@@ -147,34 +218,66 @@ model ZohoSyncLog {
   createdAt   DateTime @default(now())
 }
 
-model Setting {
-  id    String @id @default(cuid())
-  key   String @unique
-  value String
+model agent_alerts {
+  id              String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  type            String
+  severity        String    @default("INFO")
+  title           String
+  message         String?
+  project_id      String?
+  employee_id     String?
+  is_read         Boolean?  @default(false)
+  acknowledged_at DateTime? @db.Timestamptz(6)
+  created_at      DateTime? @default(now()) @db.Timestamptz(6)
 }
 
-model Employee {
-  id              String    @id @default(cuid())
-  name            String
-  salary          Float
-  residencyExpiry DateTime?
-  createdAt       DateTime  @default(now())
+model agent_config {
+  id               String    @id @default("1")
+  is_active        Boolean?  @default(true)
+  interval_minutes Int?      @default(15)
+  last_run         DateTime? @db.Timestamptz(6)
 }
 
-model CompanyExpense {
-  id         String    @id @default(cuid())
-  key        String    @unique
-  label      String
-  amount     Float     @default(0)
-  period     String    // MONTHLY, ANNUAL, BIANNUAL
-  expiryDate DateTime?
+model agent_daily_summaries {
+  id           String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  summary_date String
+  content      Json?     @default("{}")
+  created_at   DateTime? @default(now()) @db.Timestamptz(6)
 }
 
-model ProjectPlan {
-  id          String   @id @default(cuid())
-  name        String
-  saleValue   Float    @default(0)
-  items       String   // JSON array of supplier quote items
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+model agent_messages {
+  id         String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  role       String
+  content    String
+  created_at DateTime? @default(now()) @db.Timestamptz(6)
+}
+
+model agent_runs {
+  id           String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  started_at   DateTime? @default(now()) @db.Timestamptz(6)
+  completed_at DateTime? @db.Timestamptz(6)
+  perception   String?
+  reasoning    String?
+  actions      Json?     @default("[]")
+  outcome      String?
+}
+
+model event_management_events {
+  id         String   @id
+  data       Json     @default("{}")
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+}
+
+model project_margins {
+  id             String    @id @default(dbgenerated("(gen_random_uuid())::text"))
+  project_id     String
+  project_name   String?
+  margin_percent Float?
+  revenue        Float?
+  cost           Float?
+  recorded_at    DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([project_id])
+  @@index([recorded_at])
 }

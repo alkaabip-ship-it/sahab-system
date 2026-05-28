@@ -134,7 +134,7 @@ export default function ProjectDetailPage() {
 
       {/* Header card */}
       <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-6">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex-1">
             {editing ? (
               <div className="space-y-3">
@@ -143,30 +143,30 @@ export default function ProjectDetailPage() {
                   onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
                   className="w-full text-xl font-bold border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-sky-500"
                 />
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <input
                     value={editForm.clientName}
                     onChange={(e) => setEditForm({ ...editForm, clientName: e.target.value })}
                     placeholder="اسم العميل"
-                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 w-full"
                   />
                   <input
                     type="number"
                     value={editForm.value}
                     onChange={(e) => setEditForm({ ...editForm, value: e.target.value })}
                     placeholder="القيمة"
-                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 w-full"
                   />
                   <input
                     type="date"
                     value={editForm.executionDate}
                     onChange={(e) => setEditForm({ ...editForm, executionDate: e.target.value })}
-                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 w-full"
                   />
                   <select
                     value={editForm.status}
                     onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
-                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white"
+                    className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-500 bg-white w-full"
                   >
                     {STATUS_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>{o.label}</option>
@@ -250,7 +250,7 @@ export default function ProjectDetailPage() {
         {/* KPIs */}
         {!editing && (
           <>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-slate-100">
+            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-4 mt-5 pt-5 border-t border-slate-100">
               <div className="text-center">
                 <p className="text-xs text-slate-400 mb-1">الإيراد (بدون ضريبة)</p>
                 <p className="text-lg font-bold text-slate-800">
@@ -285,7 +285,7 @@ export default function ProjectDetailPage() {
             </div>
 
             {/* VAT breakdown */}
-            <div className="mt-4 grid grid-cols-3 gap-3 bg-amber-50 border border-amber-100 rounded-xl p-4">
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3 bg-amber-50 border border-amber-100 rounded-xl p-4">
               <div className="text-center">
                 <p className="text-xs text-amber-600 mb-1">ضريبة محصّلة من العميل</p>
                 <p className="text-base font-bold text-amber-700">
@@ -337,46 +337,48 @@ export default function ProjectDetailPage() {
               {project.bills?.length === 0 ? (
                 <p className="text-center text-slate-400 py-8">لا توجد فواتير</p>
               ) : (
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-slate-100 text-slate-500">
-                      <th className="text-right pb-2">رقم الفاتورة</th>
-                      <th className="text-right pb-2">المورد</th>
-                      <th className="text-right pb-2">المبلغ</th>
-                      <th className="text-right pb-2">التاريخ</th>
-                      <th className="text-right pb-2">الحالة</th>
-                      <th className="pb-2"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {project.bills.map((b: any) => (
-                      <tr key={b.id} className="border-b border-slate-50 group">
-                        <td className="py-2 font-mono text-xs text-slate-500">{b.billNumber}</td>
-                        <td className="py-2 text-slate-700">{b.supplier?.name || '-'}</td>
-                        <td className="py-2 font-medium text-slate-800">
-                          {formatNum(b.amount)}{' '}
-                          <span className="text-xs text-slate-400">د.إ</span>
-                        </td>
-                        <td className="py-2 text-slate-500 text-xs">{formatDate(b.billDate)}</td>
-                        <td className="py-2">
-                          <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(b.status)}`}>
-                            {getStatusLabel(b.status)}
-                          </span>
-                        </td>
-                        <td className="py-2 text-left">
-                          <button
-                            onClick={() => handleUnlinkBill(b.id)}
-                            disabled={unlinkingBill === b.id}
-                            title="فك الارتباط بالمشروع"
-                            className="opacity-0 group-hover:opacity-100 text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 px-2 py-0.5 rounded transition-all disabled:opacity-30"
-                          >
-                            {unlinkingBill === b.id ? '...' : '⛓ فك'}
-                          </button>
-                        </td>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-100 text-slate-500">
+                        <th className="hidden sm:table-cell text-right pb-2 whitespace-nowrap">رقم الفاتورة</th>
+                        <th className="text-right pb-2">المورد</th>
+                        <th className="text-right pb-2 whitespace-nowrap">المبلغ</th>
+                        <th className="hidden sm:table-cell text-right pb-2 whitespace-nowrap">التاريخ</th>
+                        <th className="text-right pb-2">الحالة</th>
+                        <th className="pb-2"></th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {project.bills.map((b: any) => (
+                        <tr key={b.id} className="border-b border-slate-50 group">
+                          <td className="hidden sm:table-cell py-2 font-mono text-xs text-slate-500 whitespace-nowrap">{b.billNumber}</td>
+                          <td className="py-2 text-slate-700">{b.supplier?.name || '-'}</td>
+                          <td className="py-2 font-medium text-slate-800 whitespace-nowrap">
+                            {formatNum(b.amount)}{' '}
+                            <span className="text-xs text-slate-400">د.إ</span>
+                          </td>
+                          <td className="hidden sm:table-cell py-2 text-slate-500 text-xs whitespace-nowrap">{formatDate(b.billDate)}</td>
+                          <td className="py-2">
+                            <span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(b.status)}`}>
+                              {getStatusLabel(b.status)}
+                            </span>
+                          </td>
+                          <td className="py-2 text-left">
+                            <button
+                              onClick={() => handleUnlinkBill(b.id)}
+                              disabled={unlinkingBill === b.id}
+                              title="فك الارتباط بالمشروع"
+                              className="opacity-0 group-hover:opacity-100 text-xs text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-300 px-2 py-0.5 rounded transition-all disabled:opacity-30"
+                            >
+                              {unlinkingBill === b.id ? '...' : '⛓ فك'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}

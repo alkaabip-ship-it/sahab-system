@@ -4,6 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { fullSync } from '@/lib/zoho'
 
+export const maxDuration = 300 // 5 minutes — Vercel Pro
+
 export async function POST() {
   const session = await getServerSession(authOptions)
   if (!session) {

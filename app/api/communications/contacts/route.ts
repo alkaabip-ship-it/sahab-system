@@ -17,8 +17,7 @@ export async function GET(req: NextRequest) {
     if (type === 'supplier') {
       // From local DB — already synced from Zoho
       const suppliers = await prisma.supplier.findMany({
-        where: { email: { not: null } },
-        select: { id: true, zohoId: true, name: true, email: true, serviceType: true },
+        select: { id: true, zohoId: true, name: true, email: true, phone: true, serviceType: true },
         orderBy: { name: 'asc' },
       })
       return NextResponse.json({ contacts: suppliers })

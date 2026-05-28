@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { getStatusLabel, getStatusColor } from '@/lib/utils'
 import { usePermissions } from '@/lib/PermissionsContext'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
+import { useSession } from 'next-auth/react'
 import {
   HiComputerDesktop, HiSpeakerWave, HiLightBulb, HiDocumentDuplicate,
   HiViewColumns, HiWrench, HiSparkles, HiGift,
@@ -254,6 +255,8 @@ export default function SuppliersPage() {
   const { t, lang } = useTranslation()
   const isRTL = lang === 'ar'
   const perms = usePermissions()
+  const { data: session } = useSession()
+  const isAdmin = (session?.user as any)?.role === 'ADMIN'
   const fmt   = (n: number) => !perms.viewFinancials ? '••••••' : formatNum(n)
 
   const [suppliers,     setSuppliers]     = useState<any[]>([])
@@ -264,6 +267,8 @@ export default function SuppliersPage() {
   const [showAdd,       setShowAdd]       = useState(false)
   const [sortBy,        setSortBy]        = useState<'name' | 'amount' | 'deals'>('amount')
   const [cardPage,      setCardPage]      = useState(1)
+  const [importing,     setImporting]     = useState(false)
+  const [importMsg,     setImportMsg]     = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
   const CARDS_PER_PAGE = 12
 
   // CSV export
@@ -298,6 +303,40 @@ export default function SuppliersPage() {
     const a = document.createElement('a')
     a.href = url; a.download = `suppliers-${new Date().toISOString().slice(0,10)}.csv`
     a.click(); URL.revokeObjectURL(url)
+  }
+
+  // CSV import
+  async function importCSV(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    e.target.value = ''
+    setImporting(true); setImportMsg(null)
+    try {
+      const text = await file.text()
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+      // Skip header row
+      const dataLines = lines.slice(1)
+      let added = 0, skipped = 0
+      for (const line of dataLines) {
+        // Parse CSV fields (handle quoted values)
+        const cols = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g)
+          ?.map(v => v.replace(/^"|"$/g, '').replace(/""/g, '"').trim()) ?? []
+        const [name, , phone, email] = cols
+        if (!name) { skipped++; continue }
+        const res = await fetch('/api/suppliers', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, phone: phone || null, email: email || null }),
+        })
+        if (res.ok) added++; else skipped++
+      }
+      setImportMsg({ type: 'ok', text: `✅ تم إضافة ${added} مورد${skipped ? ` (تم تخطي ${skipped})` : ''}` })
+      loadSuppliers()
+    } catch {
+      setImportMsg({ type: 'err', text: '❌ خطأ في قراءة الملف' })
+    } finally {
+      setImporting(false)
+    }
   }
 
   // Inline serviceType quick-edit
@@ -384,20 +423,41 @@ export default function SuppliersPage() {
             </p>
           )}
         </div>
-        <button
-          onClick={exportCSV}
-          className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
-          title={isRTL ? 'تصدير CSV' : 'Export CSV'}
-        >
-          ⬇ CSV
-        </button>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
-        >
-          <span className="text-base leading-none">+</span> {t.suppliers.addSupplier}
-        </button>
+        <div className="flex items-center gap-2 flex-wrap justify-end">
+          {isAdmin && (
+            <>
+              {/* Upload CSV */}
+              <label
+                className={`px-4 py-2 text-white text-sm font-semibold rounded-xl transition-all flex items-center gap-2 ${importing ? 'bg-sky-300 cursor-not-allowed' : 'bg-sky-500 hover:bg-sky-600 cursor-pointer'}`}
+                title={isRTL ? 'رفع CSV' : 'Upload CSV'}
+              >
+                {importing ? (isRTL ? 'جاري الرفع...' : 'Uploading...') : '⬆ CSV'}
+                <input type="file" accept=".csv" className="hidden" onChange={importCSV} disabled={importing} />
+              </label>
+              {/* Export CSV */}
+              <button
+                onClick={exportCSV}
+                className="px-4 py-2 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
+                title={isRTL ? 'تصدير CSV' : 'Export CSV'}
+              >
+                ⬇ CSV
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => setShowAdd(true)}
+            className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-semibold rounded-xl transition-all flex items-center gap-2"
+          >
+            <span className="text-base leading-none">+</span> {t.suppliers.addSupplier}
+          </button>
+        </div>
       </div>
+      {/* Import feedback */}
+      {importMsg && (
+        <div className={`text-sm font-medium px-4 py-2 rounded-xl ${importMsg.type === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+          {importMsg.text}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-wrap gap-3">

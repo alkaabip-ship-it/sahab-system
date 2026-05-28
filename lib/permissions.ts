@@ -11,6 +11,8 @@ export type Permissions = {
     uploadBill:     boolean
     communications: boolean
     settings:       boolean
+    inventory:      boolean
+    tasks:          boolean
   }
 }
 
@@ -19,6 +21,7 @@ export const ADMIN_PERMISSIONS: Permissions = {
   tabs: {
     dashboard: true, projects: true, suppliers: true, bills: true, clients: true,
     reports: true, admin: true, uploadBill: true, communications: true, settings: true,
+    inventory: true, tasks: true,
   },
 }
 
@@ -27,6 +30,7 @@ export const DEFAULT_VIEWER_PERMISSIONS: Permissions = {
   tabs: {
     dashboard: true, projects: true, suppliers: true, bills: false, clients: true,
     reports: false, admin: false, uploadBill: false, communications: false, settings: false,
+    inventory: true, tasks: true,
   },
 }
 

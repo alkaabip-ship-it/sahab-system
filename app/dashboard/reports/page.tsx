@@ -57,17 +57,24 @@ export default function ReportsPage() {
       return (
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50 border-b border-slate-100">
-            {[t.projects.code, t.reports.project, t.reports.client, t.reports.revenue, t.reports.cost, t.reports.profit, t.reports.margin, t.reports.status].map(h => <Th key={h}>{h}</Th>)}
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.projects.code}</th>
+            <Th>{t.reports.project}</Th>
+            <th className="hidden md:table-cell text-right px-4 py-3 text-slate-600 font-semibold">{t.reports.client}</th>
+            <th className="hidden md:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.reports.revenue}</th>
+            <th className="hidden md:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.reports.cost}</th>
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.reports.profit}</th>
+            <Th>{t.reports.margin}</Th>
+            <Th>{t.reports.status}</Th>
           </tr></thead>
           <tbody>
             {rows.map((p: any) => (
               <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50">
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.code}</td>
+                <td className="hidden sm:table-cell px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{p.code}</td>
                 <td className="px-4 py-3 font-medium text-slate-700">{p.name}</td>
-                <td className="px-4 py-3 text-slate-500">{p.clientName}</td>
-                <td className="px-4 py-3">{fmt(p.revenueExVat ?? p.value / 1.05)} {aed}</td>
-                <td className="px-4 py-3">{fmt(p.costsExVat ?? p.costs / 1.05)} {aed}</td>
-                <td className="px-4 py-3"><span className={p.profit >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{fmt(p.profit)} {aed}</span></td>
+                <td className="hidden md:table-cell px-4 py-3 text-slate-500">{p.clientName}</td>
+                <td className="hidden md:table-cell px-4 py-3 whitespace-nowrap">{fmt(p.revenueExVat ?? p.value / 1.05)} {aed}</td>
+                <td className="hidden md:table-cell px-4 py-3 whitespace-nowrap">{fmt(p.costsExVat ?? p.costs / 1.05)} {aed}</td>
+                <td className="hidden sm:table-cell px-4 py-3 whitespace-nowrap"><span className={p.profit >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>{fmt(p.profit)} {aed}</span></td>
                 <td className="px-4 py-3"><span className={`font-semibold ${p.margin >= 30 ? 'text-green-600' : p.margin >= 20 ? 'text-yellow-600' : 'text-red-500'}`}>{!perms.viewFinancials ? '••••••' : `${p.margin.toFixed(1)}%`}</span></td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(p.status)}`}>{t.status[p.status as keyof typeof t.status] ?? p.status}</span></td>
               </tr>
@@ -84,19 +91,23 @@ export default function ReportsPage() {
       return (
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50 border-b border-slate-100">
-            <Th>{t.bills.billNumber}</Th><Th>{t.reports.supplier}</Th>
-            {showProject && <Th>{t.reports.project}</Th>}
-            <Th>{t.bills.amount}</Th><Th>{t.bills.date}</Th><Th>{t.bills.dueDate}</Th><Th>{t.bills.status}</Th>
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.bills.billNumber}</th>
+            <Th>{t.reports.supplier}</Th>
+            {showProject && <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold">{t.reports.project}</th>}
+            <Th>{t.bills.amount}</Th>
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.bills.date}</th>
+            <th className="hidden md:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.bills.dueDate}</th>
+            <Th>{t.bills.status}</Th>
           </tr></thead>
           <tbody>
             {rows.map((b: any) => (
               <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50">
-                <td className="px-4 py-3 font-mono text-xs text-slate-500">{b.billNumber}</td>
+                <td className="hidden sm:table-cell px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{b.billNumber}</td>
                 <td className="px-4 py-3 text-slate-700">{b.supplier?.name || '-'}</td>
-                {showProject && <td className="px-4 py-3 text-xs text-slate-500">{b.project?.code || <span className="text-orange-400">-</span>}</td>}
-                <td className="px-4 py-3 font-semibold">{fmt(b.amount)} {aed}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{formatDate(b.billDate, lang)}</td>
-                <td className="px-4 py-3 text-xs">{b.dueDate ? <span className={new Date(b.dueDate) < new Date() && b.status !== 'PAID' ? 'text-red-500 font-medium' : 'text-slate-500'}>{formatDate(b.dueDate, lang)}</span> : '-'}</td>
+                {showProject && <td className="hidden sm:table-cell px-4 py-3 text-xs text-slate-500">{b.project?.code || <span className="text-orange-400">-</span>}</td>}
+                <td className="px-4 py-3 font-semibold whitespace-nowrap">{fmt(b.amount)} {aed}</td>
+                <td className="hidden sm:table-cell px-4 py-3 text-xs text-slate-500 whitespace-nowrap">{formatDate(b.billDate, lang)}</td>
+                <td className="hidden md:table-cell px-4 py-3 text-xs">{b.dueDate ? <span className={new Date(b.dueDate) < new Date() && b.status !== 'PAID' ? 'text-red-500 font-medium' : 'text-slate-500'}>{formatDate(b.dueDate, lang)}</span> : '-'}</td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(b.status)}`}>{t.status[b.status as keyof typeof t.status] ?? b.status}</span></td>
               </tr>
             ))}
@@ -110,16 +121,21 @@ export default function ReportsPage() {
       return (
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50 border-b border-slate-100">
-            <Th>#</Th><Th>{t.reports.supplier}</Th><Th>{t.reports.service}</Th><Th>{t.reports.deals}</Th><Th>{t.reports.total}</Th><Th>{t.suppliers.recommendation}</Th>
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold">#</th>
+            <Th>{t.reports.supplier}</Th>
+            <th className="hidden md:table-cell text-right px-4 py-3 text-slate-600 font-semibold">{t.reports.service}</th>
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold">{t.reports.deals}</th>
+            <Th>{t.reports.total}</Th>
+            <Th>{t.suppliers.recommendation}</Th>
           </tr></thead>
           <tbody>
             {data.map((s: any, i: number) => (
               <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
-                <td className="px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
+                <td className="hidden sm:table-cell px-4 py-3 text-slate-400 text-xs">{i + 1}</td>
                 <td className="px-4 py-3 font-medium text-slate-700">{s.name}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{t.serviceType[s.serviceType as keyof typeof t.serviceType] ?? s.serviceType}</td>
-                <td className="px-4 py-3 text-center">{s.dealCount}</td>
-                <td className="px-4 py-3 font-semibold">{fmt(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
+                <td className="hidden md:table-cell px-4 py-3 text-xs text-slate-500">{t.serviceType[s.serviceType as keyof typeof t.serviceType] ?? s.serviceType}</td>
+                <td className="hidden sm:table-cell px-4 py-3 text-center">{s.dealCount}</td>
+                <td className="px-4 py-3 font-semibold whitespace-nowrap">{fmt(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(s.recommendation)}`}>{t.recommendation[s.recommendation as keyof typeof t.recommendation] ?? s.recommendation}</span></td>
               </tr>
             ))}
@@ -133,17 +149,23 @@ export default function ReportsPage() {
       return (
         <table className="w-full text-sm">
           <thead><tr className="bg-slate-50 border-b border-slate-100">
-            <Th>{t.reports.supplier}</Th><Th>{t.reports.service}</Th><Th>{t.reports.deals}</Th><Th>{t.reports.total}</Th><Th>{t.reports.paid}</Th><Th>{t.reports.unpaid}</Th><Th>{t.suppliers.recommendation}</Th>
+            <Th>{t.reports.supplier}</Th>
+            <th className="hidden md:table-cell text-right px-4 py-3 text-slate-600 font-semibold">{t.reports.service}</th>
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold">{t.reports.deals}</th>
+            <Th>{t.reports.total}</Th>
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.reports.paid}</th>
+            <th className="hidden sm:table-cell text-right px-4 py-3 text-slate-600 font-semibold whitespace-nowrap">{t.reports.unpaid}</th>
+            <Th>{t.suppliers.recommendation}</Th>
           </tr></thead>
           <tbody>
             {data.map((s: any) => (
               <tr key={s.id} className="border-b border-slate-50 hover:bg-slate-50">
                 <td className="px-4 py-3 font-medium text-slate-700">{s.name}</td>
-                <td className="px-4 py-3 text-xs text-slate-500">{t.serviceType[s.serviceType as keyof typeof t.serviceType] ?? s.serviceType}</td>
-                <td className="px-4 py-3 text-center">{s.dealCount}</td>
-                <td className="px-4 py-3 font-semibold">{fmt(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
-                <td className="px-4 py-3 text-green-600">{fmt(s.paidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
-                <td className="px-4 py-3 text-red-500">{fmt(s.unpaidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
+                <td className="hidden md:table-cell px-4 py-3 text-xs text-slate-500">{t.serviceType[s.serviceType as keyof typeof t.serviceType] ?? s.serviceType}</td>
+                <td className="hidden sm:table-cell px-4 py-3 text-center">{s.dealCount}</td>
+                <td className="px-4 py-3 font-semibold whitespace-nowrap">{fmt(s.totalAmount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
+                <td className="hidden sm:table-cell px-4 py-3 text-green-600 whitespace-nowrap">{fmt(s.paidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
+                <td className="hidden sm:table-cell px-4 py-3 text-red-500 whitespace-nowrap">{fmt(s.unpaidAmount)} <span className="text-xs opacity-70">{t.common.aed}</span></td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded-full ${getStatusColor(s.recommendation)}`}>{t.recommendation[s.recommendation as keyof typeof t.recommendation] ?? s.recommendation}</span></td>
               </tr>
             ))}
@@ -159,7 +181,7 @@ export default function ReportsPage() {
       <h2 className="text-xl font-bold text-slate-800">{t.reports.title}</h2>
 
       {/* Report type grid */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
         {REPORT_TYPES.map((r) => (
           <button key={r.id} onClick={() => loadReport(r.id)}
             className={`p-4 rounded-xl border text-right transition-all ${selectedReport === r.id ? 'border-sky-400 bg-sky-50' : 'border-slate-100 bg-white hover:border-sky-200'}`}>

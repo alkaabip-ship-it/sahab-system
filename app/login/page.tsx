@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Image from 'next/image'
 import { signIn } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 
@@ -36,10 +37,16 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         {/* Logo / Brand */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 bg-sky-500 rounded-2xl mb-4 shadow-lg">
-            <span className="text-white text-3xl font-bold">س</span>
+          <div className="inline-flex items-center justify-center mb-4">
+            <Image
+              src="/sahab-logo.jpg"
+              alt="Sahab"
+              width={160}
+              height={120}
+              className="rounded-2xl shadow-lg object-cover"
+              priority
+            />
           </div>
-          <h1 className="text-4xl font-bold text-white mb-1">سحاب</h1>
           <p className="text-sky-300 text-sm">نظام إدارة المعارض والفعاليات</p>
         </div>
 
@@ -68,6 +75,10 @@ export default function LoginPage() {
                 placeholder="اسم المستخدم أو البريد الإلكتروني"
                 className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-slate-800 placeholder:text-slate-400"
                 dir="ltr"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="username"
+                spellCheck={false}
               />
             </div>
 
@@ -82,6 +93,9 @@ export default function LoginPage() {
                 required
                 placeholder="••••••••"
                 className="w-full px-4 py-3 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-transparent text-slate-800 placeholder:text-slate-400"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="current-password"
               />
             </div>
 

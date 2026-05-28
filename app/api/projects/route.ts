@@ -20,8 +20,9 @@ export async function GET(req: NextRequest) {
       prisma.project.count(),
       prisma.project.findMany({
         include: {
-          bills: { select: { amount: true } },
-          _count: { select: { bills: true } },
+          bills:    { select: { amount: true } },
+          invoices: { select: { invoiceDate: true }, orderBy: { invoiceDate: 'asc' }, take: 1 },
+          _count:   { select: { bills: true } },
         },
         orderBy: [{ executionDate: 'desc' }, { createdAt: 'desc' }],
         skip,
@@ -36,8 +37,18 @@ export async function GET(req: NextRequest) {
       const costsExVat   = costs / VAT
       const profit       = revenueExVat - costsExVat
       const margin       = revenueExVat > 0 ? (profit / revenueExVat) * 100 : 0
-      return { ...p, costs, revenueExVat, costsExVat, profit, margin }
+      // displayDate: first linked invoice date → executionDate → createdAt
+      const invoiceDate  = p.invoices[0]?.invoiceDate ?? null
+      const displayDate  = invoiceDate
+        ? invoiceDate.toISOString().slice(0, 10)
+        : p.executionDate
+          ? p.executionDate.toISOString().slice(0, 10)
+          : p.createdAt.toISOString().slice(0, 10)
+      return { ...p, costs, revenueExVat, costsExVat, profit, margin, displayDate }
     })
+
+    // Re-sort by displayDate descending (invoice date takes priority over executionDate)
+    data.sort((a, b) => new Date(b.displayDate).getTime() - new Date(a.displayDate).getTime())
 
     return NextResponse.json({ data, total, page, limit, pages: Math.ceil(total / limit) })
   } catch (error) {

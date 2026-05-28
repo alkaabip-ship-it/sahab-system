@@ -11,17 +11,19 @@ export const authOptions: NextAuthOptions = {
         email: { label: 'البريد الإلكتروني', type: 'email' },
         password: { label: 'كلمة المرور', type: 'password' },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         if (!credentials?.email || !credentials?.password) {
+          console.log('[AUTH] Missing credentials')
           return null
         }
 
-        // Support login by username (name field) OR email
+        // Support login by username (name field) OR email (case-insensitive)
+        const emailLower = credentials.email.toLowerCase().trim()
         const user = await prisma.user.findFirst({
           where: {
             OR: [
-              { email: credentials.email },
-              { name: credentials.email },
+              { email: { equals: emailLower, mode: 'insensitive' } },
+              { name:  { equals: credentials.email.trim(), mode: 'insensitive' } },
             ],
           },
         })
@@ -38,6 +40,14 @@ export const authOptions: NextAuthOptions = {
         if (!isPasswordValid) {
           return null
         }
+
+        // Record login (fire and forget — never block the login flow)
+        const ip =
+          (req?.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
+          (req?.headers?.['x-real-ip'] as string) ||
+          null
+        const userAgent = (req?.headers?.['user-agent'] as string) || null
+        prisma.loginLog.create({ data: { userId: user.id, ip, userAgent } }).catch(() => {})
 
         return {
           id: user.id,

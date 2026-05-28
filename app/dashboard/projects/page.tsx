@@ -333,7 +333,7 @@ export default function ProjectsPage() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-slate-800">{t.projects.title}</h2>
         <Link href="/dashboard/projects/new"
           className="px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-lg transition-all">
@@ -435,7 +435,7 @@ export default function ProjectsPage() {
           )}
 
           {/* Office Expenses — Fixed Card */}
-          <div className="bg-slate-800 rounded-xl p-4 flex items-center justify-between gap-4">
+          <div className="bg-slate-800 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-slate-700 rounded-xl flex items-center justify-center flex-shrink-0">
                 <HiBuildingOffice2 size={20} className="text-slate-300" />
@@ -446,7 +446,7 @@ export default function ProjectsPage() {
               </div>
             </div>
 
-            <div className="flex items-center gap-6">
+            <div className="flex flex-wrap items-center gap-4 sm:gap-6">
               <div className="text-center">
                 <p className="text-xs text-slate-400 mb-0.5">الفواتير المرتبطة</p>
                 <p className="text-white font-bold text-lg">
@@ -495,24 +495,31 @@ export default function ProjectsPage() {
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="bg-slate-50 border-b border-slate-100">
-                      {[t.projects.code, 'التاريخ', t.projects.name, t.projects.client,
-                        ...(perms.viewFinancials ? [t.projects.value, t.projects.cost, t.projects.profit, t.projects.margin] : []),
-                        t.projects.status, t.common.actions].map(h => (
-                        <th key={h} className="text-right px-4 py-3 font-semibold text-slate-600">{h}</th>
-                      ))}
+                      <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.projects.code}</th>
+                      <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">التاريخ</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600">{t.projects.name}</th>
+                      <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600">{t.projects.client}</th>
+                      {perms.viewFinancials && <>
+                        <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.projects.value}</th>
+                        <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.projects.cost}</th>
+                        <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.projects.profit}</th>
+                        <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.projects.margin}</th>
+                      </>}
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600">{t.projects.status}</th>
+                      <th className="text-right px-4 py-3 font-semibold text-slate-600">{t.common.actions}</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filtered.map(p => (
                       <tr key={p.id} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3 font-mono text-xs text-slate-500">{p.code}</td>
-                        <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(p.displayDate)}</td>
+                        <td className="hidden sm:table-cell px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{p.code}</td>
+                        <td className="hidden md:table-cell px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(p.displayDate)}</td>
                         <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
-                        <td className="px-4 py-3 text-slate-600">{p.clientName}</td>
+                        <td className="hidden sm:table-cell px-4 py-3 text-slate-600">{p.clientName}</td>
                         {perms.viewFinancials && <>
-                        <td className="px-4 py-3 text-slate-700 font-medium">{fmt(p.revenueExVat ?? p.value / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
-                        <td className="px-4 py-3 text-slate-600">{fmt(p.costsExVat ?? p.costs / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
-                        <td className="px-4 py-3">
+                        <td className="hidden md:table-cell px-4 py-3 text-slate-700 font-medium whitespace-nowrap">{fmt(p.revenueExVat ?? p.value / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
+                        <td className="hidden md:table-cell px-4 py-3 text-slate-600 whitespace-nowrap">{fmt(p.costsExVat ?? p.costs / 1.05)} <span className="text-xs text-slate-400">{t.common.aed}</span></td>
+                        <td className="hidden sm:table-cell px-4 py-3">
                           <span className={p.profit >= 0 ? 'text-green-600 font-medium' : 'text-red-500 font-medium'}>
                             {fmt(p.profit)} <span className="text-xs font-normal opacity-70">{t.common.aed}</span>
                           </span>

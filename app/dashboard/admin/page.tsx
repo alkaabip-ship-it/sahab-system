@@ -216,7 +216,7 @@ export default function AdminPage() {
   const pnlPeriodLabel = pnlFrom && pnlTo ? `${formatDateLabel(pnlFrom)} — ${formatDateLabel(pnlTo)}` : 'الكل'
 
   return (
-    <div className="max-w-3xl space-y-6">
+    <div className="max-w-3xl w-full space-y-6">
       <h2 className="text-xl font-bold text-slate-800">{t.admin.title}</h2>
 
       {/* ── P&L Statement ── */}
@@ -393,7 +393,7 @@ export default function AdminPage() {
       <div className="bg-slate-800 rounded-xl p-5 text-white">
         <p className="text-sm text-slate-400 mb-3">{t.admin.monthlyOverhead}</p>
         <p className="text-3xl font-bold">{formatNum(totalMonthlyOverhead)} <span className="text-lg font-normal text-slate-300">{t.common.aed}{t.common.perMonth}</span></p>
-        <div className="mt-3 flex gap-6 text-sm text-slate-300">
+        <div className="mt-3 flex flex-wrap gap-4 sm:gap-6 text-sm text-slate-300">
           <span>{t.admin.salaries}: {formatNum(monthlySalaries)} {t.common.aed}</span>
           <span>{t.admin.fixedExpenses}: {formatNum(monthlyExpenses)} {t.common.aed}</span>
         </div>

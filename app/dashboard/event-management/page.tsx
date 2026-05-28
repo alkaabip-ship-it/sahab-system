@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { useSession } from 'next-auth/react'
 import { useTranslation } from '@/lib/i18n/LanguageContext'
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -8,7 +9,8 @@ import { useTranslation } from '@/lib/i18n/LanguageContext'
 ═══════════════════════════════════════════════════════════════════════════ */
 interface CargoItem {
   id: string; name: string; truck: string; qty: number
-  loaded: boolean; unloaded: boolean
+  contactName?: string; contactPhone?: string
+  loaded: boolean; unloaded: boolean; setupDone?: boolean
 }
 interface TaskNote { author: string; text: string; timestamp: string }
 interface SetupTask {
@@ -19,12 +21,22 @@ interface SafetyCheck { id: string; name: string; checked: boolean }
 interface ShowCue { id: string; time: string; duration: string; label: string; target: string; active: boolean; completed: boolean }
 interface Issue { id: string; title: string; severity: 'high' | 'medium'; section: string; status: 'unresolved' | 'resolved' }
 interface LogEntry { id: string; time: string; msg: string; phase: string }
+interface ChatMessage { id: string; author: string; text: string; time: string }
+interface PermitImage { id: string; name: string; dataUrl: string }
 interface EventData {
-  id: string; name: string; client: string; venue: string; date: string; crewOwners: string[]
+  id: string; name: string; client: string; venue: string; date: string
+  startTime?: string          // HH:MM — وقت بداية الفعالية
+  setupDeadline?: string      // HH:MM — وقت انتهاء التجهيزات
+  setupDeadlineDate?: string  // YYYY-MM-DD — تاريخ انتهاء التجهيزات (مستقل عن تاريخ الفعالية)
+  crewOwners: string[]
   loadingChecklist: CargoItem[]
   sectionSetup: Record<string, SetupTask[]>
   execution: { unlocked: boolean; safetyChecks: SafetyCheck[]; cues: ShowCue[] }
+  permits: PermitImage[]
   issues: Issue[]; activityLog: LogEntry[]
+  chat: ChatMessage[]
+  archived?: boolean
+  archivedAt?: string
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -58,7 +70,9 @@ function makeEvent(name = 'New Event', client = '', venue = '', date = ''): Even
       ],
       cues: [],
     },
+    permits: [],
     issues: [], activityLog: [],
+    chat: [],
   }
 }
 
@@ -105,6 +119,8 @@ const pill = (color: string, active: boolean): React.CSSProperties => ({
 export default function EventManagementPage() {
   const { lang } = useTranslation()
   const isRTL = lang === 'ar'
+  const { data: session } = useSession()
+  const isAdmin = (session?.user as any)?.role === 'ADMIN'
 
   // ── State ────────────────────────────────────────────────────────────────
   const [now,      setNow]      = useState(0)   // 0 = not mounted yet (avoids SSR/client mismatch)
@@ -113,14 +129,19 @@ export default function EventManagementPage() {
   const [activeId,     setActiveId]     = useState<string | null>(null)
   const [phase,        setPhase]        = useState<'overview'|'loading'|'unloading'|'setup'|'execution'>('overview')
   const [dept,         setDept]         = useState(DEPTS[0])
-  const [panelTab,     setPanelTab]     = useState<'issues'|'activity'>('issues')
+  const [panelTab,     setPanelTab]     = useState<'chat'|'issues'|'activity'>('chat')
   const [showModal,    setShowModal]    = useState(false)
   const [editEv,       setEditEv]       = useState<EventData | null>(null)
   const [commentOpen,  setCommentOpen]  = useState<Record<string,boolean>>({})
 
   // form
-  const [fName, setFName] = useState(''); const [fClient, setFClient] = useState('')
-  const [fVenue,setFVenue]= useState(''); const [fDate,   setFDate]   = useState('')
+  const [fName,          setFName]          = useState('')
+  const [fClient,        setFClient]        = useState('')
+  const [fVenue,         setFVenue]         = useState('')
+  const [fDate,          setFDate]          = useState('')
+  const [fStartTime,         setFStartTime]         = useState('')
+  const [fSetupDeadline,     setFSetupDeadline]     = useState('')
+  const [fSetupDeadlineDate, setFSetupDeadlineDate] = useState('')
   // task
   const [nTaskName,  setNTaskName]  = useState('')
   const [nTaskPri,   setNTaskPri]   = useState<'high'|'medium'|'low'>('medium')
@@ -130,12 +151,31 @@ export default function EventManagementPage() {
   const [nCueTime,setNCueTime]=useState(''); const [nCueDur,setNCueDur]=useState('')
   const [nCueLabel,setNCueLabel]=useState(''); const [nCueTarget,setNCueTarget]=useState('')
   // new cargo item
-  const [nCargoName, setNCargoName] = useState('')
-  const [nCargoTruck, setNCargoTruck] = useState('Truck 1')
-  const [nCargoQty,  setNCargoQty]  = useState('1')
+  const [nCargoName,    setNCargoName]    = useState('')
+  const [nCargoTruck,   setNCargoTruck]   = useState('Truck 1')
+  const [nCargoQty,     setNCargoQty]     = useState('1')
+  const [nCargoContact, setNCargoContact] = useState('')
+  const [nCargoPhone,   setNCargoPhone]   = useState('')
   // crew management
   const [showCrewMgr, setShowCrewMgr] = useState(false)
   const [newCrewName, setNewCrewName] = useState('')
+  // permits lightbox
+  const [permitPreview, setPermitPreview] = useState<string | null>(null)
+  // archived events
+  const [showArchived, setShowArchived] = useState(false)
+  // chat
+  const [chatMsg,    setChatMsg]    = useState('')
+  const [chatAuthor, setChatAuthor] = useState('')
+  const chatEndRef = useRef<HTMLDivElement>(null)
+
+  // CSV
+  const [csvImporting, setCsvImporting] = useState(false)
+  const [csvMsg,       setCsvMsg]       = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
+
+  // ── Mobile detection & panel toggles ─────────────────────────────────────
+  const [isMobile,          setIsMobile]          = useState(false)
+  const [showMobileSidebar, setShowMobileSidebar] = useState(false)
+  const [showMobilePanel,   setShowMobilePanel]   = useState(false)
 
   // ── Tick every second for countdown (client-only) ────────────────────────
   useEffect(() => {
@@ -171,10 +211,27 @@ export default function EventManagementPage() {
   // ── Load on mount ─────────────────────────────────────────────────────────
   useEffect(() => { fetchEvents(true) }, [])
 
-  // ── Poll every 12 s — all users see changes without refreshing ────────────
+  // ── Poll every 5 s — all users see changes without refreshing ─────────────
   useEffect(() => {
-    const id = setInterval(() => fetchEvents(false), 12000)
+    const id = setInterval(() => fetchEvents(false), 5000)
     return () => clearInterval(id)
+  }, [])
+
+  // ── Re-fetch immediately when the browser tab becomes visible again ────────
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible') fetchEvents(false)
+    }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  }, [])
+
+  // ── Mobile screen detection ───────────────────────────────────────────────
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    check()
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
   }, [])
 
   // ── Save active-event preference locally (not data) ───────────────────────
@@ -205,25 +262,29 @@ export default function EventManagementPage() {
       return next
     })
   }
-  function addLog(msg: string, ph: string) {
-    upd(e => ({ ...e, activityLog: [{ id: uid(), time: clock(), msg, phase: ph }, ...e.activityLog].slice(0,60) }))
-  }
-
   // ── Metrics ───────────────────────────────────────────────────────────────
   const m = (() => {
-    if (!ev) return { lPct:0, uPct:0, sPct:0, lCount:0, uCount:0, sCount:0, totalS:0, issues:0 }
+    if (!ev) return { lPct:0, uPct:0, sPct:0, sdPct:0, lCount:0, uCount:0, sCount:0, totalS:0, sdCount:0, sdTotal:0, issues:0 }
     const lCount = ev.loadingChecklist.filter(i=>i.loaded).length
     const lTotal = ev.loadingChecklist.length
     const lPct = lTotal ? Math.round(lCount/lTotal*100) : 0
     const uCount = ev.loadingChecklist.filter(i=>i.unloaded).length
     const uTotal = ev.loadingChecklist.filter(i=>i.loaded).length
     const uPct = uTotal ? Math.round(uCount/uTotal*100) : 0
+    // setup-done on received items
+    const sdTotal = ev.loadingChecklist.filter(i=>i.unloaded).length
+    const sdCount = ev.loadingChecklist.filter(i=>i.setupDone).length
+    const sdPct = sdTotal ? Math.round(sdCount/sdTotal*100) : 0
+    // dept tasks
     const allTasks = DEPTS.flatMap(d=>ev.sectionSetup[d]||[])
     const sCount = allTasks.filter(t=>t.status==='done').length
     const totalS = allTasks.length
-    const sPct = totalS ? Math.round(sCount/totalS*100) : 0
+    // sPct combines both dept tasks and received-items setup
+    const combinedDone  = sCount + sdCount
+    const combinedTotal = totalS + sdTotal
+    const sPct = combinedTotal ? Math.round(combinedDone/combinedTotal*100) : (sdTotal ? sdPct : 0)
     const issues = ev.issues.filter(i=>i.status==='unresolved').length
-    return { lPct, uPct, sPct, lCount, uCount, sCount, totalS, issues, lTotal, uTotal }
+    return { lPct, uPct, sPct, sdPct, lCount, uCount, sCount, totalS, sdCount, sdTotal, issues, lTotal, uTotal }
   })()
 
   const countdown = (() => {
@@ -242,43 +303,140 @@ export default function EventManagementPage() {
     return `${hh}:${mm}:${ss}`
   })()
 
+  // reusable countdown builder (date string + optional HH:MM time)
+  function buildCountdown(dateStr: string, timeStr?: string): string {
+    if (!dateStr || now === 0) return '--:--:--'
+    const dt = timeStr ? new Date(`${dateStr}T${timeStr}`) : new Date(dateStr)
+    const diff = dt.getTime() - now
+    if (diff <= 0) return isRTL ? '✅ انتهى' : '✅ Done'
+    const d  = Math.floor(diff / 86400000)
+    const h  = Math.floor((diff % 86400000) / 3600000)
+    const mn = Math.floor((diff % 3600000)  / 60000)
+    const sc = Math.floor((diff % 60000)    / 1000)
+    const hh = String(h).padStart(2,'0'), mm2 = String(mn).padStart(2,'0'), ss = String(sc).padStart(2,'0')
+    return d > 0 ? `${d}d  ${hh}:${mm2}:${ss}` : `${hh}:${mm2}:${ss}`
+  }
+
   // ── Event CRUD ────────────────────────────────────────────────────────────
   function saveEvent() {
     if (!fName.trim()) return
+    const times = {
+      startTime:         fStartTime||undefined,
+      setupDeadline:     fSetupDeadline||undefined,
+      setupDeadlineDate: fSetupDeadlineDate||undefined,
+    }
     if (editEv) {
-      const updated = { ...editEv, name:fName, client:fClient, venue:fVenue, date:fDate }
+      const updated = { ...editEv, name:fName, client:fClient, venue:fVenue, date:fDate, ...times }
       setEvents(p => p.map(e => e.id===editEv.id ? updated : e))
       saveEventToDB(updated)
     } else {
-      const n = makeEvent(fName, fClient, fVenue, fDate)
+      const n = { ...makeEvent(fName, fClient, fVenue, fDate), ...times }
       setEvents(p => [...p, n])
       setActiveId(n.id)
       saveEventToDB(n)
     }
     setShowModal(false)
   }
-  function openCreate() { setEditEv(null); setFName(''); setFClient(''); setFVenue(''); setFDate(''); setShowModal(true) }
-  function openEdit(e: EventData) { setEditEv(e); setFName(e.name); setFClient(e.client); setFVenue(e.venue); setFDate(e.date); setShowModal(true) }
+  function openCreate() {
+    setEditEv(null); setFName(''); setFClient(''); setFVenue(''); setFDate('')
+    setFStartTime(''); setFSetupDeadline(''); setFSetupDeadlineDate(''); setShowModal(true)
+  }
+  function openEdit(e: EventData) {
+    setEditEv(e); setFName(e.name); setFClient(e.client); setFVenue(e.venue); setFDate(e.date)
+    setFStartTime(e.startTime||''); setFSetupDeadline(e.setupDeadline||'')
+    setFSetupDeadlineDate(e.setupDeadlineDate||''); setShowModal(true)
+  }
   function delEvent(id: string) {
     if (!confirm(isRTL ? 'حذف هذه الفعالية؟' : 'Delete this event?')) return
     const rem = events.filter(e=>e.id!==id)
     setEvents(rem)
-    if (activeId===id) setActiveId(rem[0]?.id||null)
-    // delete from DB
+    if (activeId===id) setActiveId(rem.find(e=>!e.archived)?.id||null)
     fetch('/api/event-management', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id }),
     }).catch(() => {})
   }
+  function archiveEvent(id: string) {
+    const archivedAt = new Date().toLocaleDateString('ar-AE', { year:'numeric', month:'long', day:'numeric' })
+    setEvents(prev => prev.map(e => e.id===id ? { ...e, archived:true, archivedAt } : e))
+    const target = events.find(e=>e.id===id)
+    if (target) saveEventToDB({ ...target, archived:true, archivedAt })
+    if (activeId===id) {
+      const next = events.find(e => e.id!==id && !e.archived)
+      setActiveId(next?.id||null)
+    }
+  }
+  function restoreEvent(id: string) {
+    setEvents(prev => prev.map(e => e.id===id ? { ...e, archived:false, archivedAt:undefined } : e))
+    const target = events.find(e=>e.id===id)
+    if (target) saveEventToDB({ ...target, archived:false, archivedAt:undefined })
+  }
+
+  // ── CSV Export / Import ───────────────────────────────────────────────────
+  function exportEventCSV() {
+    const headers = ['اسم الفعالية', 'العميل', 'الموقع', 'التاريخ', 'التحميل%', 'التفريغ%', 'الإعداد%', 'الحالة']
+    const rows = events.map(ev => {
+      const lTotal = ev.loadingChecklist.length
+      const lCount = ev.loadingChecklist.filter(i => i.loaded).length
+      const lPct   = lTotal ? Math.round(lCount / lTotal * 100) : 0
+      const uTotal = ev.loadingChecklist.filter(i => i.loaded).length
+      const uCount = ev.loadingChecklist.filter(i => i.unloaded).length
+      const uPct   = uTotal ? Math.round(uCount / uTotal * 100) : 0
+      const allTasks = DEPTS.flatMap(d => ev.sectionSetup[d] || [])
+      const sPct   = allTasks.length ? Math.round(allTasks.filter(t => t.status === 'done').length / allTasks.length * 100) : 0
+      return [ev.name, ev.client || '', ev.venue || '', ev.date || '', lPct + '%', uPct + '%', sPct + '%', ev.archived ? 'مؤرشفة' : 'نشطة']
+    })
+    const csv  = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n')
+    const bom  = '﻿'
+    const blob = new Blob([bom + csv], { type: 'text/csv;charset=utf-8;' })
+    const url  = URL.createObjectURL(blob)
+    const a    = document.createElement('a'); a.href = url; a.download = `events-${new Date().toISOString().slice(0, 10)}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
+  async function importEventCSV(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]; if (!file) return
+    e.target.value = ''
+    setCsvImporting(true); setCsvMsg(null)
+    try {
+      const text  = await file.text()
+      const lines = text.split('\n').map(l => l.trim()).filter(Boolean).slice(1)
+      let added = 0, skipped = 0
+      for (const line of lines) {
+        const cols = line.match(/(".*?"|[^,]+|(?<=,)(?=,)|^(?=,)|(?<=,)$)/g)
+          ?.map(v => v.replace(/^"|"$/g, '').replace(/""/g, '"').trim()) ?? []
+        const [name, client, venue, date] = cols
+        if (!name) { skipped++; continue }
+        const newEv = { ...makeEvent(name, client || '', venue || '', date || '') }
+        setEvents(prev => [...prev, newEv])
+        setActiveId(newEv.id)
+        saveEventToDB(newEv)
+        added++
+      }
+      setCsvMsg({ type: 'ok', text: `✅ تم إضافة ${added} فعالية${skipped ? ` (تم تخطي ${skipped})` : ''}` })
+    } catch {
+      setCsvMsg({ type: 'err', text: '❌ خطأ في قراءة الملف' })
+    } finally {
+      setCsvImporting(false)
+    }
+  }
 
   // ── Cargo CRUD ────────────────────────────────────────────────────────────
   function addCargoItem() {
     if (!nCargoName.trim()) return
-    const item: CargoItem = { id: uid(), name: nCargoName, truck: nCargoTruck, qty: parseInt(nCargoQty)||1, loaded: false, unloaded: false }
-    upd(e => ({ ...e, loadingChecklist: [...e.loadingChecklist, item] }))
-    setNCargoName(''); setNCargoQty('1')
-    addLog(`📦 Added cargo: "${nCargoName}"`, 'load')
+    const item: CargoItem = {
+      id: uid(), name: nCargoName, truck: nCargoTruck, qty: parseInt(nCargoQty)||1,
+      contactName: nCargoContact.trim() || undefined,
+      contactPhone: nCargoPhone.trim() || undefined,
+      loaded: false, unloaded: false,
+    }
+    const logMsg = `📦 Added cargo: "${nCargoName}"${nCargoContact ? ` — ${nCargoContact}` : ''}`
+    upd(e => {
+      const next = { ...e, loadingChecklist: [...e.loadingChecklist, item] }
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: logMsg, phase: 'load' }, ...next.activityLog].slice(0,60) }
+    })
+    setNCargoName(''); setNCargoQty('1'); setNCargoContact(''); setNCargoPhone('')
   }
   function delCargoItem(id: string) {
     upd(e => ({ ...e, loadingChecklist: e.loadingChecklist.filter(i => i.id !== id) }))
@@ -295,18 +453,90 @@ export default function EventManagementPage() {
     upd(e => ({ ...e, crewOwners: e.crewOwners.filter(o => o !== name) }))
   }
 
+  // ── Permits ───────────────────────────────────────────────────────────────
+  function compressImage(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onerror = reject
+      reader.onload = ev => {
+        const img = new Image()
+        img.onerror = reject
+        img.onload = () => {
+          const MAX_W = 900, MAX_H = 1200
+          let w = img.width, h = img.height
+          if (w > MAX_W) { h = Math.round(h * MAX_W / w); w = MAX_W }
+          if (h > MAX_H) { w = Math.round(w * MAX_H / h); h = MAX_H }
+          const canvas = document.createElement('canvas')
+          canvas.width = w; canvas.height = h
+          canvas.getContext('2d')!.drawImage(img, 0, 0, w, h)
+          resolve(canvas.toDataURL('image/jpeg', 0.65))
+        }
+        img.src = ev.target?.result as string
+      }
+      reader.readAsDataURL(file)
+    })
+  }
+  async function addPermits(files: FileList) {
+    if (!ev) return
+    const MAX_PERMITS = 20
+    const existing = (ev.permits || []).length
+    const slots = MAX_PERMITS - existing
+    if (slots <= 0) return
+    const toAdd = Array.from(files).slice(0, slots)
+    const compressed = await Promise.all(toAdd.map(async f => ({
+      id: uid(), name: f.name, dataUrl: await compressImage(f)
+    })))
+    upd(e => ({ ...e, permits: [...(e.permits||[]), ...compressed] }))
+  }
+  function delPermit(id: string) {
+    upd(e => ({ ...e, permits: (e.permits||[]).filter(p => p.id !== id) }))
+  }
+
+  // ── Chat ──────────────────────────────────────────────────────────────────
+  function deleteChatMsg(id: string) {
+    upd(e => ({ ...e, chat: (e.chat||[]).filter(m => m.id !== id) }))
+  }
+
+  function sendChat() {
+    if (!chatMsg.trim() || !ev) return
+    const author = (session?.user?.name) || 'User'
+    const msg: ChatMessage = { id: uid(), author, text: chatMsg.trim(), time: new Date().toLocaleTimeString('en-AE', { hour:'2-digit', minute:'2-digit' }) }
+    upd(e => ({ ...e, chat: [...(e.chat||[]), msg] }))
+    setChatMsg('')
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior:'smooth' }), 60)
+  }
+
   // ── Loading / Unloading ───────────────────────────────────────────────────
   function toggleLoaded(id: string) {
     if (!ev) return
     const item = ev.loadingChecklist.find(i=>i.id===id); if (!item) return
-    upd(e => ({...e, loadingChecklist: e.loadingChecklist.map(i => i.id===id ? {...i, loaded: !i.loaded} : i)}))
-    addLog(`${item.loaded ? '↩ Unloaded' : '✓ Loaded'}: ${item.name}`, 'load')
+    // Single upd call → single DB write (avoids race between two concurrent PUTs)
+    const logMsg = `${item.loaded ? '↩ Unloaded' : '✓ Loaded'}: ${item.name}`
+    upd(e => {
+      const next = {...e, loadingChecklist: e.loadingChecklist.map(i => i.id===id ? {...i, loaded: !i.loaded} : i)}
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: logMsg, phase: 'load' }, ...next.activityLog].slice(0,60) }
+    })
   }
   function toggleUnloaded(id: string) {
     if (!ev) return
     const item = ev.loadingChecklist.find(i=>i.id===id); if (!item) return
-    upd(e => ({...e, loadingChecklist: e.loadingChecklist.map(i => i.id===id ? {...i, unloaded: !i.unloaded} : i)}))
-    addLog(`${item.unloaded ? '↩ Re-loaded' : '✓ Unloaded at venue'}: ${item.name}`, 'unload')
+    // Single upd call → single DB write (avoids race between two concurrent PUTs)
+    const logMsg = `${item.unloaded ? '↩ Re-loaded' : '✓ Unloaded at venue'}: ${item.name}`
+    upd(e => {
+      const next = {...e, loadingChecklist: e.loadingChecklist.map(i => i.id===id ? {...i, unloaded: !i.unloaded} : i)}
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: logMsg, phase: 'unload' }, ...next.activityLog].slice(0,60) }
+    })
+  }
+
+  // ── Setup Done (cargo items checklist inside Section Setup) ──────────────
+  function toggleSetupDone(id: string) {
+    if (!ev) return
+    const item = ev.loadingChecklist.find(i => i.id === id); if (!item) return
+    const logMsg = `${item.setupDone ? '↩ Setup undone' : '✅ Setup done'}: ${item.name}`
+    upd(e => {
+      const next = { ...e, loadingChecklist: e.loadingChecklist.map(i => i.id === id ? { ...i, setupDone: !i.setupDone } : i) }
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: logMsg, phase: 'setup' }, ...next.activityLog].slice(0, 60) }
+    })
   }
 
   // ── Tasks ────────────────────────────────────────────────────────────────
@@ -314,58 +544,90 @@ export default function EventManagementPage() {
     if (!nTaskName.trim() || !ev) return
     const t: SetupTask = { id: uid(), name: nTaskName, owner: nTaskOwner || ev.crewOwners[0] || 'Team',
       priority: nTaskPri, status: 'pending', progress: 0, hasIssue: false, notes: [] }
-    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [dept]: [...(e.sectionSetup[dept]||[]), t]}}))
-    setNTaskName(''); addLog(`Task added: "${nTaskName}" in ${dept}`, 'setup')
+    const logMsg = `Task added: "${nTaskName}" in ${dept}`
+    const curDept = dept
+    upd(e => {
+      const next = {...e, sectionSetup: {...e.sectionSetup, [curDept]: [...(e.sectionSetup[curDept]||[]), t]}}
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: logMsg, phase: 'setup' }, ...next.activityLog].slice(0,60) }
+    })
+    setNTaskName('')
   }
   function taskStatus(tid: string, s: SetupTask['status']) {
-    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [dept]: (e.sectionSetup[dept]||[]).map(t => t.id===tid ? {...t, status:s} : t)}}))
+    const curDept = dept
+    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [curDept]: (e.sectionSetup[curDept]||[]).map(t => t.id===tid ? {...t, status:s} : t)}}))
   }
   function taskProgress(tid: string, p: number) {
-    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [dept]: (e.sectionSetup[dept]||[]).map(t => t.id===tid ? {...t, progress:p} : t)}}))
+    const curDept = dept
+    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [curDept]: (e.sectionSetup[curDept]||[]).map(t => t.id===tid ? {...t, progress:p} : t)}}))
   }
   function flagIssue(tid: string) {
     if (!ev) return
     const task = (ev.sectionSetup[dept]||[]).find(t=>t.id===tid); if (!task) return
     const nowBlocked = !task.hasIssue
-    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [dept]: (e.sectionSetup[dept]||[]).map(t => t.id===tid ? {...t, hasIssue: nowBlocked} : t)}}))
-    if (nowBlocked) {
-      upd(e => ({...e, issues: [...e.issues, { id: uid(), title: `Blocker: ${task.name}`, severity: task.priority==='high'?'high':'medium', section: dept, status: 'unresolved' }]}))
-      addLog(`⚠️ Blocked: "${task.name}" in ${dept}`, 'issue')
-    }
+    const curDept = dept
+    upd(e => {
+      // Toggle hasIssue on the task
+      const nextSetup = {...e.sectionSetup, [curDept]: (e.sectionSetup[curDept]||[]).map(t => t.id===tid ? {...t, hasIssue: nowBlocked} : t)}
+      // If newly blocked, add issue + log in the same update
+      if (nowBlocked) {
+        const newIssue = { id: uid(), title: `Blocker: ${task.name}`, severity: task.priority==='high'?'high' as const:'medium' as const, section: curDept, status: 'unresolved' as const }
+        const logEntry = { id: uid(), time: clock(), msg: `⚠️ Blocked: "${task.name}" in ${curDept}`, phase: 'issue' }
+        return { ...e, sectionSetup: nextSetup, issues: [...e.issues, newIssue], activityLog: [logEntry, ...e.activityLog].slice(0,60) }
+      }
+      return { ...e, sectionSetup: nextSetup }
+    })
   }
   function delTask(tid: string) {
-    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [dept]: (e.sectionSetup[dept]||[]).filter(t=>t.id!==tid)}}))
+    const curDept = dept
+    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [curDept]: (e.sectionSetup[curDept]||[]).filter(t=>t.id!==tid)}}))
   }
   function addComment(tid: string) {
     const ci = commentInputs[tid]; if (!ci?.text?.trim() || !ev) return
-    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [dept]: (e.sectionSetup[dept]||[]).map(t => t.id===tid ? {...t, notes:[...t.notes,{author:ci.author||ev.crewOwners[0]||'Team',text:ci.text,timestamp:clock()}]} : t)}}))
+    const curDept = dept
+    const author = ci.author || ev.crewOwners[0] || 'Team'
+    upd(e => ({...e, sectionSetup: {...e.sectionSetup, [curDept]: (e.sectionSetup[curDept]||[]).map(t => t.id===tid ? {...t, notes:[...t.notes,{author, text:ci.text, timestamp:clock()}]} : t)}}))
     setCommentInputs(p => ({...p, [tid]: {...p[tid], text:''}}))
     setCommentOpen(p => ({...p, [tid]: true}))
   }
 
   // ── Execution ─────────────────────────────────────────────────────────────
   function toggleSafety(cid: string) {
-    upd(e => ({...e, execution: {...e.execution, safetyChecks: e.execution.safetyChecks.map(c => c.id===cid ? {...c, checked:!c.checked} : c)}}))
-    addLog('Safety check toggled', 'exec')
+    upd(e => {
+      const next = {...e, execution: {...e.execution, safetyChecks: e.execution.safetyChecks.map(c => c.id===cid ? {...c, checked:!c.checked} : c)}}
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: 'Safety check toggled', phase: 'exec' }, ...next.activityLog].slice(0,60) }
+    })
   }
-  function unlock() { upd(e => ({...e, execution:{...e.execution, unlocked:true}})); addLog('🚀 Show Control Console UNLOCKED', 'exec') }
+  function unlock() {
+    upd(e => {
+      const next = {...e, execution:{...e.execution, unlocked:true}}
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: '🚀 Show Control Console UNLOCKED', phase: 'exec' }, ...next.activityLog].slice(0,60) }
+    })
+  }
   function addCue() {
     if (!nCueLabel.trim()||!nCueTime.trim()) return
     const c: ShowCue = { id: uid(), time: nCueTime, duration: nCueDur||'5 min', label: nCueLabel, target: nCueTarget||'All Crew', active: true, completed: false }
-    upd(e => ({...e, execution:{...e.execution, cues:[...e.execution.cues, c]}}))
-    addLog(`Cue added: "${nCueLabel}"`, 'exec')
+    const logMsg = `Cue added: "${nCueLabel}"`
+    upd(e => {
+      const next = {...e, execution:{...e.execution, cues:[...e.execution.cues, c]}}
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: logMsg, phase: 'exec' }, ...next.activityLog].slice(0,60) }
+    })
     setNCueTime(''); setNCueDur(''); setNCueLabel(''); setNCueTarget('')
   }
   function fireCue(cid: string) {
     if (!ev) return
     const cue = ev.execution.cues.find(c=>c.id===cid); if (!cue) return
-    upd(e => ({...e, execution:{...e.execution, cues: e.execution.cues.map(c => c.id===cid ? {...c, completed:true, active:false} : c)}}))
-    addLog(`🔥 Cue fired: "${cue.label}"`, 'exec')
+    const logMsg = `🔥 Cue fired: "${cue.label}"`
+    upd(e => {
+      const next = {...e, execution:{...e.execution, cues: e.execution.cues.map(c => c.id===cid ? {...c, completed:true, active:false} : c)}}
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: logMsg, phase: 'exec' }, ...next.activityLog].slice(0,60) }
+    })
   }
   function delCue(cid: string) { upd(e => ({...e, execution:{...e.execution, cues: e.execution.cues.filter(c=>c.id!==cid)}})) }
   function resolveIssue(iid: string) {
-    upd(e => ({...e, issues: e.issues.map(i => i.id===iid ? {...i, status:'resolved'} : i)}))
-    addLog('✅ Issue resolved', 'issue')
+    upd(e => {
+      const next = {...e, issues: e.issues.map(i => i.id===iid ? {...i, status:'resolved' as const} : i)}
+      return { ...next, activityLog: [{ id: uid(), time: clock(), msg: '✅ Issue resolved', phase: 'issue' }, ...next.activityLog].slice(0,60) }
+    })
   }
 
   const overall = Math.round((m.lPct + m.uPct + m.sPct) / 3)
@@ -382,19 +644,47 @@ export default function EventManagementPage() {
      RENDER
   ══════════════════════════════════════════════════════════════════════════ */
   return (
-    <div style={{ background: C.bg, color: C.textP, fontFamily:"'Inter',sans-serif", height:'calc(100vh - 65px)', display:'flex', flexDirection:'column', margin:'-24px', overflow:'hidden' }}>
+    <div style={{ background: C.bg, color: C.textP, fontFamily:"'Inter',sans-serif", height:'calc(100vh - 65px)', display:'flex', flexDirection:'column', margin: isMobile ? '-12px' : '-24px', overflow:'hidden' }}>
 
       {/* ── Pipeline Nav ─────────────────────────────────────────────────── */}
-      <div style={{ display:'flex', background:'rgba(11,14,25,0.95)', borderBottom:`1px solid ${C.border}`, height:44, flexShrink:0 }}>
+      <div style={{ display:'flex', background:'rgba(11,14,25,0.95)', borderBottom:`1px solid ${C.border}`, height:44, flexShrink:0, overflowX:'auto' }}>
         {/* Event selector */}
         <div style={{ display:'flex', alignItems:'center', padding:'0 12px', borderRight:`1px solid ${C.border}`, gap:6, flexShrink:0 }}>
-          {events.length > 0 ? (
+          {events.filter(e=>!e.archived).length > 0 ? (
             <select value={activeId||''} onChange={e=>setActiveId(e.target.value)}
               style={{ background:'rgba(255,255,255,0.05)', border:`1px solid ${C.border}`, borderRadius:6, padding:'3px 8px', fontSize:11, color:C.textP, cursor:'pointer', maxWidth:160, outline:'none' }}>
-              {events.map(e=><option key={e.id} value={e.id} style={{background:'#0f172a'}}>{e.name}</option>)}
+              {events.filter(e=>!e.archived).map(e=><option key={e.id} value={e.id} style={{background:'#0f172a'}}>{e.name}</option>)}
             </select>
           ) : <span style={{fontSize:11, color:C.textM}}>{isRTL?'لا فعاليات':'No events'}</span>}
           <button onClick={openCreate} style={btn(C.load,'black',{padding:'3px 9px',fontSize:11})}>+</button>
+          {/* Archived events button — admin only */}
+          {isAdmin && (
+            <button onClick={()=>setShowArchived(true)}
+              style={{ display:'flex', alignItems:'center', gap:4, background:'rgba(255,255,255,0.04)', border:`1px solid ${C.border}`, borderRadius:6, padding:'3px 9px', fontSize:10, color:C.textM, cursor:'pointer', fontWeight:700, flexShrink:0, transition:'all .2s' }}>
+              📦 <span>{isRTL?'المنتهية':'Archived'}</span>
+              {events.filter(e=>e.archived).length > 0 && (
+                <span style={{ background:'rgba(255,255,255,0.1)', borderRadius:8, padding:'0 5px', fontSize:9 }}>{events.filter(e=>e.archived).length}</span>
+              )}
+            </button>
+          )}
+          {/* CSV import/export — admin only */}
+          {isAdmin && (
+            <>
+              <label style={{ display:'flex', alignItems:'center', gap:4, background: csvImporting ? 'rgba(99,102,241,0.08)' : 'rgba(99,102,241,0.12)', border:'1px solid rgba(99,102,241,0.3)', borderRadius:6, padding:'3px 9px', fontSize:10, color:'hsl(240 80% 70%)', cursor: csvImporting ? 'not-allowed' : 'pointer', fontWeight:700, flexShrink:0, transition:'all .2s' }}>
+                {csvImporting ? '...' : '⬆ CSV'}
+                <input type="file" accept=".csv" style={{ display:'none' }} onChange={importEventCSV} disabled={csvImporting} />
+              </label>
+              <button onClick={exportEventCSV}
+                style={{ display:'flex', alignItems:'center', gap:4, background:'rgba(16,185,129,0.1)', border:'1px solid rgba(16,185,129,0.3)', borderRadius:6, padding:'3px 9px', fontSize:10, color:'hsl(155 70% 55%)', cursor:'pointer', fontWeight:700, flexShrink:0, transition:'all .2s' }}>
+                ⬇ CSV
+              </button>
+              {csvMsg && (
+                <span style={{ fontSize:10, fontWeight:700, color: csvMsg.type==='ok' ? 'hsl(155 70% 55%)' : 'hsl(355 90% 65%)', flexShrink:0 }}>
+                  {csvMsg.text}
+                </span>
+              )}
+            </>
+          )}
         </div>
 
         {/* Phase tabs */}
@@ -407,8 +697,7 @@ export default function EventManagementPage() {
               fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.8,
               cursor:'pointer', transition:'all .2s', display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
             <span style={{ width:16, height:16, border:'1px solid currentColor', borderRadius:'50%', display:'inline-flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:700 }}>{i}</span>
-            <span style={{display:'none'}} className="md:inline">{isRTL ? p.labelAr : p.labelEn}</span>
-            <span style={{fontSize:9}}>{isRTL ? p.labelAr : p.labelEn}</span>
+            {!isMobile && <span style={{fontSize:9}}>{isRTL ? p.labelAr : p.labelEn}</span>}
           </button>
         ))}
 
@@ -431,10 +720,34 @@ export default function EventManagementPage() {
       </div>
 
       {/* ── Body ─────────────────────────────────────────────────────────── */}
-      <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
+      <div style={{ display:'flex', flex:1, overflow:'hidden', position:'relative' }}>
+        {/* Mobile backdrops */}
+        {isMobile && showMobileSidebar && (
+          <div onClick={()=>setShowMobileSidebar(false)}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.65)', zIndex:45 }} />
+        )}
+        {isMobile && showMobilePanel && (
+          <div onClick={()=>setShowMobilePanel(false)}
+            style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:45 }} />
+        )}
 
         {/* ── Left Sidebar ─────────────────────────────────────────────── */}
-        <div style={{ width:230, background:'rgba(11,14,25,0.4)', borderRight:`1px solid ${C.border}`, overflowY:'auto', padding:16, flexShrink:0, display:'flex', flexDirection:'column', gap:14 }}>
+        <div style={{ ...(isMobile ? {
+            position:'fixed', top:0, left:0, bottom:0, width:280, zIndex:50,
+            transform: showMobileSidebar ? 'translateX(0)' : 'translateX(-100%)',
+            transition:'transform .3s ease'
+          } : { width:230, flexShrink:0 }),
+          background:'rgba(11,14,25,0.97)', borderRight:`1px solid ${C.border}`, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:14 }}>
+          {/* Mobile sidebar close */}
+          {isMobile && (
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4, paddingBottom:10, borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+              <span style={{ fontSize:12, fontWeight:700, color:C.textS }}>
+                {isRTL ? 'الفعالية' : 'Event Info'}
+              </span>
+              <button onClick={()=>setShowMobileSidebar(false)}
+                style={{ background:'transparent', border:'none', cursor:'pointer', color:C.textM, fontSize:22, lineHeight:1, padding:0 }}>×</button>
+            </div>
+          )}
           {ev ? (
             <>
               {/* Event info */}
@@ -448,12 +761,41 @@ export default function EventManagementPage() {
                   <button onClick={()=>openEdit(ev)} style={{ flex:1, background:'rgba(255,255,255,0.05)', border:`1px solid ${C.border}`, borderRadius:5, padding:'4px', fontSize:11, color:C.textS, cursor:'pointer' }}>✏️ {isRTL?'تعديل':'Edit'}</button>
                   <button onClick={()=>delEvent(ev.id)} style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:5, padding:'4px 7px', fontSize:11, color:C.danger, cursor:'pointer' }}>🗑️</button>
                 </div>
+                {/* Archive button — admin only */}
+                {isAdmin && (
+                  <button onClick={()=>{ if(confirm(isRTL?'أرشفة هذه الفعالية؟':'Archive this event?')) archiveEvent(ev.id) }}
+                    style={{ width:'100%', marginTop:8, background:'rgba(251,146,60,0.07)', border:'1px solid rgba(251,146,60,0.25)', borderRadius:5, padding:'6px', fontSize:11, color:C.warning, cursor:'pointer', fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:5 }}>
+                    📦 {isRTL?'إنهاء المشروع وأرشفته':'Close & Archive Project'}
+                  </button>
+                )}
               </div>
 
-              {/* Countdown */}
-              <div style={card({ borderLeft:`3px solid ${C.exec}` })}>
-                <div style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:C.textM, marginBottom:6 }}>{isRTL?'العد التنازلي':'Countdown'}</div>
-                <div style={{ fontWeight:800, fontSize:'1.4rem', color:C.exec, fontFamily:'monospace', letterSpacing:1 }}>{countdown}</div>
+              {/* Countdown(s) in sidebar */}
+              <div style={card({ borderLeft:`3px solid ${C.exec}`, padding:12 })}>
+                <div style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:C.textM, marginBottom:8 }}>
+                  {isRTL?'العد التنازلي':'Countdown'}
+                </div>
+                {/* Main: start time (if set) else just date */}
+                <div style={{ fontWeight:800, fontSize:'1.35rem', color:C.exec, fontFamily:'monospace', letterSpacing:1, marginBottom: ev.setupDeadline ? 10 : 0 }}>
+                  {ev.startTime ? buildCountdown(ev.date, ev.startTime) : countdown}
+                </div>
+                {ev.startTime && (
+                  <div style={{ fontSize:9, color:C.textM, marginBottom: ev.setupDeadline ? 10 : 0 }}>
+                    🎬 {isRTL?'بداية الفعالية':'Event start'} {ev.startTime}
+                  </div>
+                )}
+                {/* Setup deadline */}
+                {ev.setupDeadline && (
+                  <>
+                    <div style={{ height:1, background:'rgba(255,255,255,0.06)', marginBottom:8 }}/>
+                    <div style={{ fontWeight:700, fontSize:'1rem', color:C.setup, fontFamily:'monospace', letterSpacing:1 }}>
+                      {buildCountdown(ev.setupDeadlineDate || ev.date, ev.setupDeadline)}
+                    </div>
+                    <div style={{ fontSize:9, color:C.textM, marginTop:3 }}>
+                      🔧 {isRTL?'انتهاء التجهيزات':'Setup deadline'} {ev.setupDeadline}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Metrics */}
@@ -503,11 +845,11 @@ export default function EventManagementPage() {
                 )}
               </div>
 
-              {/* Other events */}
-              {events.length > 1 && (
+              {/* Other active events */}
+              {events.filter(e=>!e.archived).length > 1 && (
                 <div>
                   <div style={{ fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:1.5, color:C.textM, marginBottom:8 }}>{isRTL?'الفعاليات':'Events'}</div>
-                  {events.map(e=>(
+                  {events.filter(e=>!e.archived).map(e=>(
                     <button key={e.id} onClick={()=>setActiveId(e.id)} style={{ width:'100%', textAlign:'left', background: e.id===activeId?'rgba(255,255,255,0.06)':'transparent', border:`1px solid ${e.id===activeId?'rgba(255,255,255,0.12)':'transparent'}`, borderRadius:6, padding:'7px 10px', marginBottom:4, cursor:'pointer', color: e.id===activeId ? C.textP : C.textM, fontSize:12, fontWeight:600 }}>
                       {e.name}
                     </button>
@@ -525,7 +867,7 @@ export default function EventManagementPage() {
         </div>
 
         {/* ── Main Content ──────────────────────────────────────────────── */}
-        <div style={{ flex:1, overflowY:'auto', padding:24 }}>
+        <div style={{ flex:1, overflowY:'auto', padding: isMobile ? '12px 12px 72px' : '24px' }}>
           {!ev ? (
             <div style={{ display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', height:'100%', gap:16, opacity:.6 }}>
               <div style={{ fontSize:'4rem' }}>🎪</div>
@@ -539,7 +881,7 @@ export default function EventManagementPage() {
                 <h2 style={{ fontWeight:700, fontSize:'1.6rem', marginBottom:4 }}>{isRTL?'نظرة عامة':'Overview'}</h2>
                 <p style={{ color:C.textS, fontSize:13 }}>{ev.name} — {ev.venue||'–'}</p>
               </div>
-              <div style={{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:18, marginBottom:24 }}>
+              <div style={{ display:'grid', gridTemplateColumns: isMobile ? '1fr' : 'repeat(2,1fr)', gap:18, marginBottom:24 }}>
                 {[
                   { key:'loading',   titleEn:'Loading Phase',   titleAr:'مرحلة التحميل',   pct:m.lPct, color:C.load,   icon:'🚚', desc:`${m.lCount} of ${(m as any).lTotal||ev.loadingChecklist.length} items loaded` },
                   { key:'unloading', titleEn:'Unloading Phase',  titleAr:'مرحلة التفريغ',   pct:m.uPct, color:C.unload, icon:'📦', desc:`${m.uCount} items received at venue` },
@@ -561,6 +903,64 @@ export default function EventManagementPage() {
                   </div>
                 ))}
               </div>
+              {/* ── Permits card ─────────────────────────────────────────── */}
+              {(() => {
+                const permits = ev.permits || []
+                return (
+                  <div style={{ ...card({ marginBottom:24 }), padding:'12px 16px' }}>
+                    {/* Header row */}
+                    <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom: permits.length ? 12 : 0 }}>
+                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+                        <span style={{ fontSize:16 }}>📋</span>
+                        <span style={{ fontWeight:700, fontSize:13, color:C.textP }}>{isRTL?'صور التصاريح':'Permit Documents'}</span>
+                        {permits.length > 0 && (
+                          <span style={{ fontSize:10, background:'rgba(255,255,255,0.07)', color:C.textM, borderRadius:10, padding:'1px 7px', fontWeight:600 }}>
+                            {permits.length}
+                          </span>
+                        )}
+                      </div>
+                      {/* Upload button */}
+                      <label style={{ display:'flex', alignItems:'center', gap:5, background:C.load+'18', border:`1px solid ${C.load}44`, borderRadius:6, padding:'5px 12px', cursor:'pointer', fontSize:11, fontWeight:700, color:C.load, flexShrink:0 }}>
+                        <span>+</span>
+                        <span>{isRTL?'رفع صورة':'Upload'}</span>
+                        <input type="file" accept="image/*" multiple style={{ display:'none' }}
+                          onChange={e => { if (e.target.files?.length) addPermits(e.target.files); e.target.value = '' }} />
+                      </label>
+                    </div>
+                    {/* Thumbnails */}
+                    {permits.length === 0 ? (
+                      <div style={{ fontSize:11, color:C.textM, paddingTop:6 }}>
+                        {isRTL?'لا توجد صور — اضغط "+ رفع صورة" لإضافة تصاريح':'No images yet — click "+ Upload" to add permits'}
+                      </div>
+                    ) : (
+                      <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                        {permits.map(p => (
+                          <div key={p.id} style={{ position:'relative', flexShrink:0 }}>
+                            {/* Thumbnail */}
+                            <img
+                              src={p.dataUrl} alt={p.name}
+                              onClick={() => setPermitPreview(p.dataUrl)}
+                              style={{ width:72, height:90, objectFit:'cover', borderRadius:6, border:`1px solid ${C.border}`, cursor:'zoom-in', display:'block' }}
+                            />
+                            {/* Delete button — admin only */}
+                            {isAdmin && (
+                              <button onClick={() => delPermit(p.id)}
+                                style={{ position:'absolute', top:-6, right:-6, width:18, height:18, background:C.danger, border:'none', borderRadius:'50%', color:'white', fontSize:10, fontWeight:900, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+                                ×
+                              </button>
+                            )}
+                            {/* Name tooltip */}
+                            <div style={{ fontSize:9, color:C.textM, marginTop:3, maxWidth:72, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', textAlign:'center' }}>
+                              {p.name}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )
+              })()}
+
               {/* Issues summary */}
               {m.issues > 0 && (
                 <div style={{ ...card(), borderColor:'rgba(239,68,68,0.2)', background:'rgba(239,68,68,0.03)' }}>
@@ -584,33 +984,55 @@ export default function EventManagementPage() {
               </div>
               {/* Add cargo form */}
               <div style={{ ...card({ marginBottom:18, borderStyle:'dashed' }), background:'rgba(0,0,0,0.15)' }}>
-                <div style={{ fontSize:11, color:C.textM, marginBottom:8, fontWeight:600 }}>+ {isRTL?'إضافة معدة جديدة':'Add New Item'}</div>
-                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                <div style={{ fontSize:11, color:C.textM, marginBottom:10, fontWeight:600 }}>+ {isRTL?'إضافة معدة جديدة':'Add New Item'}</div>
+                {/* Row 1: name + truck + qty */}
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap', marginBottom:8 }}>
                   <input value={nCargoName} onChange={e=>setNCargoName(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addCargoItem()}
                     placeholder={isRTL?'اسم المعدة...':'Equipment name...'}
                     style={{ ...input(), flex:'1 1 160px', minWidth:120 }} />
                   <input value={nCargoTruck} onChange={e=>setNCargoTruck(e.target.value)} placeholder="Truck 1"
                     style={{ ...input(), flex:'0 0 80px' }} />
                   <input type="number" value={nCargoQty} onChange={e=>setNCargoQty(e.target.value)} min={1}
+                    placeholder={isRTL?'الكمية':'Qty'}
                     style={{ ...input(), flex:'0 0 60px' }} />
-                  <button onClick={addCargoItem} style={btn(C.load,'black',{padding:'8px 16px'})}>{isRTL?'إضافة':'Add'}</button>
+                </div>
+                {/* Row 2: contact name + phone + add button */}
+                <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+                  <input value={nCargoContact} onChange={e=>setNCargoContact(e.target.value)}
+                    placeholder={isRTL?'👤 اسم الشخص المعني...':'👤 Contact person...'}
+                    style={{ ...input(), flex:'1 1 150px', minWidth:120 }} />
+                  <input value={nCargoPhone} onChange={e=>setNCargoPhone(e.target.value)}
+                    placeholder={isRTL?'📞 رقم الهاتف...':'📞 Phone...'}
+                    style={{ ...input(), flex:'1 1 120px', minWidth:100 }} />
+                  <button onClick={addCargoItem} style={btn(C.load,'black',{padding:'8px 18px',flexShrink:0})}>{isRTL?'إضافة':'Add'}</button>
                 </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 {ev.loadingChecklist.map(item=>(
-                  <div key={item.id} style={{ ...card(), display:'flex', alignItems:'center', gap:16, borderColor: item.loaded ? `${C.load}33` : C.border, background: item.loaded ? `${C.load}08` : C.surface, transition:'all .2s' }}>
+                  <div key={item.id} style={{ ...card(), display:'flex', alignItems:'center', gap:14, borderColor: item.loaded ? `${C.load}33` : C.border, background: item.loaded ? `${C.load}08` : C.surface, transition:'all .2s' }}>
                     {/* Checkbox */}
                     <div onClick={()=>toggleLoaded(item.id)} style={{ width:22, height:22, border:`2px solid ${item.loaded ? C.load : C.textM}`, borderRadius:5, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: item.loaded ? `${C.load}22` : 'transparent', transition:'all .2s', cursor:'pointer' }}>
                       {item.loaded && <span style={{ color:C.load, fontSize:14, fontWeight:700 }}>✓</span>}
                     </div>
-                    <div style={{ flex:1, cursor:'pointer' }} onClick={()=>toggleLoaded(item.id)}>
+                    {/* Name + meta */}
+                    <div style={{ flex:1, cursor:'pointer', minWidth:0 }} onClick={()=>toggleLoaded(item.id)}>
                       <div style={{ fontWeight:600, fontSize:13, textDecoration: item.loaded ? 'line-through' : 'none', color: item.loaded ? C.textM : C.textP }}>{item.name}</div>
-                      <div style={{ fontSize:11, color:C.textM, marginTop:2 }}>{item.truck} · Qty: {item.qty}</div>
+                      <div style={{ fontSize:11, color:C.textM, marginTop:3, display:'flex', flexWrap:'wrap', gap:'6px 14px' }}>
+                        <span>🚚 {item.truck} · Qty: {item.qty}</span>
+                        {item.contactName  && <span style={{ color:C.textS }}>👤 {item.contactName}</span>}
+                        {item.contactPhone && (
+                          <a href={`tel:${item.contactPhone}`} onClick={e=>e.stopPropagation()}
+                            style={{ color:C.load, textDecoration:'none', fontWeight:600 }}>
+                            📞 {item.contactPhone}
+                          </a>
+                        )}
+                      </div>
                     </div>
-                    <span style={{ padding:'3px 8px', borderRadius:4, fontSize:10, fontWeight:700, background: item.loaded ? `${C.load}22` : 'rgba(255,255,255,0.05)', color: item.loaded ? C.load : C.textM }}>
+                    {/* Status badge */}
+                    <span style={{ padding:'3px 8px', borderRadius:4, fontSize:10, fontWeight:700, flexShrink:0, background: item.loaded ? `${C.load}22` : 'rgba(255,255,255,0.05)', color: item.loaded ? C.load : C.textM }}>
                       {item.loaded ? (isRTL?'محمّل':'Loaded') : (isRTL?'قيد الانتظار':'Pending')}
                     </span>
-                    <button onClick={()=>delCargoItem(item.id)} style={{ background:'transparent', border:'none', cursor:'pointer', color:C.textM, fontSize:12, padding:4, borderRadius:4 }}>🗑️</button>
+                    <button onClick={()=>delCargoItem(item.id)} style={{ background:'transparent', border:'none', cursor:'pointer', color:C.textM, fontSize:12, padding:4, borderRadius:4, flexShrink:0 }}>🗑️</button>
                   </div>
                 ))}
               </div>
@@ -636,11 +1058,20 @@ export default function EventManagementPage() {
                       <div style={{ width:22, height:22, border:`2px solid ${item.unloaded ? C.unload : C.textM}`, borderRadius:5, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: item.unloaded ? `${C.unload}22` : 'transparent', transition:'all .2s' }}>
                         {item.unloaded && <span style={{ color:C.unload, fontSize:14, fontWeight:700 }}>✓</span>}
                       </div>
-                      <div style={{ flex:1 }}>
+                      <div style={{ flex:1, minWidth:0 }}>
                         <div style={{ fontWeight:600, fontSize:13, textDecoration: item.unloaded ? 'line-through' : 'none', color: item.unloaded ? C.textM : C.textP }}>{item.name}</div>
-                        <div style={{ fontSize:11, color:C.textM, marginTop:2 }}>{item.truck} · Qty: {item.qty}</div>
+                        <div style={{ fontSize:11, color:C.textM, marginTop:3, display:'flex', flexWrap:'wrap', gap:'4px 12px' }}>
+                          <span>🚚 {item.truck} · Qty: {item.qty}</span>
+                          {item.contactName  && <span style={{ color:C.textS }}>👤 {item.contactName}</span>}
+                          {item.contactPhone && (
+                            <a href={`tel:${item.contactPhone}`} onClick={e=>e.stopPropagation()}
+                              style={{ color:C.unload, textDecoration:'none', fontWeight:600 }}>
+                              📞 {item.contactPhone}
+                            </a>
+                          )}
+                        </div>
                       </div>
-                      <span style={{ padding:'3px 8px', borderRadius:4, fontSize:10, fontWeight:700, background: item.unloaded ? `${C.unload}22` : 'rgba(255,255,255,0.05)', color: item.unloaded ? C.unload : C.textM }}>
+                      <span style={{ padding:'3px 8px', borderRadius:4, fontSize:10, fontWeight:700, flexShrink:0, background: item.unloaded ? `${C.unload}22` : 'rgba(255,255,255,0.05)', color: item.unloaded ? C.unload : C.textM }}>
                         {item.unloaded ? (isRTL?'مستلَم':'Received') : (isRTL?'قيد الانتظار':'Pending')}
                       </span>
                     </div>
@@ -655,6 +1086,67 @@ export default function EventManagementPage() {
               <div style={{ marginBottom:16 }}>
                 <h2 style={{ fontWeight:700, fontSize:'1.5rem', color:C.setup, marginBottom:4 }}>{isRTL?'إعداد الأقسام':'Section Setup'}</h2>
               </div>
+
+              {/* ── Received-items setup checklist ─────────────────────────── */}
+              {(() => {
+                const received = ev.loadingChecklist.filter(i => i.unloaded)
+                if (received.length === 0) return null
+                const setupDoneCount = received.filter(i => i.setupDone).length
+                return (
+                  <div style={{ ...card({ marginBottom:24, borderColor: setupDoneCount===received.length ? `${C.success}44` : `${C.setup}33` }), background: setupDoneCount===received.length ? `${C.success}06` : `${C.setup}06` }}>
+                    {/* Header */}
+                    <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:14 }}>
+                      <div>
+                        <div style={{ fontWeight:700, fontSize:13, color: setupDoneCount===received.length ? C.success : C.setup }}>
+                          📦 {isRTL ? 'قائمة إعداد المستلمات' : 'Received Items — Setup Checklist'}
+                        </div>
+                        <div style={{ fontSize:11, color:C.textM, marginTop:3 }}>
+                          {isRTL ? 'العناصر المستلمة في الموقع — تأكد من إعداد كل قطعة' : 'Items received at venue — confirm each one is set up'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign:'center', flexShrink:0 }}>
+                        <div style={{ fontWeight:800, fontSize:'1.4rem', color: setupDoneCount===received.length ? C.success : C.setup }}>{setupDoneCount}/{received.length}</div>
+                        <div style={{ fontSize:9, color:C.textM, fontWeight:600, textTransform:'uppercase', letterSpacing:.5 }}>{isRTL?'مكتمل':'Done'}</div>
+                      </div>
+                    </div>
+                    {/* Progress bar */}
+                    <div style={{ height:4, background:'rgba(255,255,255,0.06)', borderRadius:2, overflow:'hidden', marginBottom:14 }}>
+                      <div style={{ height:'100%', width:`${received.length ? Math.round(setupDoneCount/received.length*100) : 0}%`, background: setupDoneCount===received.length ? C.success : C.setup, transition:'width .4s', borderRadius:2 }}/>
+                    </div>
+                    {/* Items */}
+                    <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+                      {received.map(item => (
+                        <div key={item.id} onClick={() => toggleSetupDone(item.id)}
+                          style={{ display:'flex', alignItems:'center', gap:14, padding:'10px 14px', background: item.setupDone ? `${C.success}08` : 'rgba(255,255,255,0.02)', border:`1px solid ${item.setupDone ? C.success+'33' : C.border}`, borderRadius:8, cursor:'pointer', transition:'all .2s' }}>
+                          {/* Checkbox */}
+                          <div style={{ width:20, height:20, border:`2px solid ${item.setupDone ? C.success : C.textM}`, borderRadius:4, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, background: item.setupDone ? `${C.success}22` : 'transparent', transition:'all .2s' }}>
+                            {item.setupDone && <span style={{ color:C.success, fontSize:12, fontWeight:700 }}>✓</span>}
+                          </div>
+                          {/* Name + truck + contact */}
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontWeight:600, fontSize:13, textDecoration: item.setupDone ? 'line-through' : 'none', color: item.setupDone ? C.textM : C.textP }}>{item.name}</div>
+                            <div style={{ fontSize:11, color:C.textM, marginTop:3, display:'flex', flexWrap:'wrap', gap:'4px 12px' }}>
+                              <span>🚚 {item.truck} · Qty: {item.qty}</span>
+                              {item.contactName  && <span style={{ color:C.textS }}>👤 {item.contactName}</span>}
+                              {item.contactPhone && (
+                                <a href={`tel:${item.contactPhone}`} onClick={e=>e.stopPropagation()}
+                                  style={{ color:C.setup, textDecoration:'none', fontWeight:600 }}>
+                                  📞 {item.contactPhone}
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                          {/* Badge */}
+                          <span style={{ padding:'3px 9px', borderRadius:4, fontSize:10, fontWeight:700, background: item.setupDone ? `${C.success}22` : 'rgba(255,255,255,0.05)', color: item.setupDone ? C.success : C.textM }}>
+                            {item.setupDone ? (isRTL?'تم الإعداد':'Set Up ✓') : (isRTL?'قيد الإعداد':'Pending')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )
+              })()}
+
               {/* Dept tabs */}
               <div style={{ display:'flex', gap:6, borderBottom:`1px solid ${C.border}`, paddingBottom:1, marginBottom:18, flexWrap:'wrap' }}>
                 {DEPTS.map(d=>(
@@ -886,19 +1378,128 @@ export default function EventManagementPage() {
         </div>
 
         {/* ── Right Panel ───────────────────────────────────────────────── */}
-        <div style={{ width:280, background:'rgba(9,11,20,0.4)', borderLeft:`1px solid ${C.border}`, display:'flex', flexDirection:'column', flexShrink:0 }}>
-          <div style={{ display:'flex', background:'rgba(0,0,0,0.15)', borderBottom:`1px solid ${C.border}` }}>
-            <button onClick={()=>setPanelTab('issues')} style={{ flex:1, background:'transparent', border:'none', padding:'12px 8px', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.8, cursor:'pointer', color: panelTab==='issues'?C.textP:C.textM, borderBottom: panelTab==='issues'?`2px solid ${C.danger}`:'2px solid transparent', transition:'all .2s' }}>
-              {isRTL?'المشاكل':'Issues'}
-              {m.issues>0 && <span style={{ background:C.danger, color:'white', borderRadius:10, padding:'1px 5px', fontSize:9, marginLeft:4 }}>{m.issues}</span>}
+        <div style={{ ...(isMobile ? {
+            position:'fixed', left:0, right:0, bottom:52, zIndex:50,
+            height:'72vh',
+            transform: showMobilePanel ? 'translateY(0)' : 'translateY(calc(100% + 60px))',
+            transition:'transform .3s ease',
+            borderRadius:'16px 16px 0 0'
+          } : { width:280, flexShrink:0 }),
+          background:'rgba(9,11,20,0.97)',
+          borderLeft: isMobile ? 'none' : `1px solid ${C.border}`,
+          borderTop: isMobile ? `1px solid ${C.border}` : 'none',
+          display:'flex', flexDirection:'column' }}>
+          {/* Mobile drag handle */}
+          {isMobile && (
+            <div style={{ display:'flex', alignItems:'center', justifyContent:'center', padding:'10px 0 6px', flexShrink:0 }}
+              onClick={()=>setShowMobilePanel(false)}>
+              <div style={{ width:40, height:4, background:'rgba(255,255,255,0.18)', borderRadius:2, cursor:'pointer' }} />
+            </div>
+          )}
+          {/* Tab header */}
+          <div style={{ display:'flex', background:'rgba(0,0,0,0.15)', borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+            <button onClick={()=>setPanelTab('chat')} style={{ flex:1, background:'transparent', border:'none', padding:'10px 4px', fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:.6, cursor:'pointer', color: panelTab==='chat'?C.textP:C.textM, borderBottom: panelTab==='chat'?`2px solid ${C.load}`:'2px solid transparent', transition:'all .2s' }}>
+              💬 {isRTL?'دردشة':'Chat'}
+              {ev && (ev.chat||[]).length > 0 && (
+                <span style={{ background:`${C.load}33`, color:C.load, borderRadius:10, padding:'1px 5px', fontSize:9, marginLeft:3 }}>{(ev.chat||[]).length}</span>
+              )}
             </button>
-            <button onClick={()=>setPanelTab('activity')} style={{ flex:1, background:'transparent', border:'none', padding:'12px 8px', fontSize:10, fontWeight:700, textTransform:'uppercase', letterSpacing:.8, cursor:'pointer', color: panelTab==='activity'?C.textP:C.textM, borderBottom: panelTab==='activity'?`2px solid ${C.load}`:'2px solid transparent', transition:'all .2s' }}>
-              {isRTL?'السجل':'Activity'}
+            <button onClick={()=>setPanelTab('issues')} style={{ flex:1, background:'transparent', border:'none', padding:'10px 4px', fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:.6, cursor:'pointer', color: panelTab==='issues'?C.textP:C.textM, borderBottom: panelTab==='issues'?`2px solid ${C.danger}`:'2px solid transparent', transition:'all .2s' }}>
+              ⚠️ {isRTL?'مشاكل':'Issues'}
+              {m.issues > 0 && <span style={{ background:C.danger, color:'white', borderRadius:10, padding:'1px 5px', fontSize:9, marginLeft:3 }}>{m.issues}</span>}
+            </button>
+            <button onClick={()=>setPanelTab('activity')} style={{ flex:1, background:'transparent', border:'none', padding:'10px 4px', fontSize:9, fontWeight:700, textTransform:'uppercase', letterSpacing:.6, cursor:'pointer', color: panelTab==='activity'?C.textP:C.textM, borderBottom: panelTab==='activity'?`2px solid ${C.setup}`:'2px solid transparent', transition:'all .2s' }}>
+              {isRTL?'سجل':'Log'}
             </button>
           </div>
-          <div style={{ flex:1, overflowY:'auto', padding:14 }}>
-            {panelTab==='issues' ? (
-              ev ? (
+
+          {panelTab==='chat' ? (
+            /* ── CHAT ─────────────────────────────────────────────────────── */
+            <div style={{ flex:1, display:'flex', flexDirection:'column', overflow:'hidden' }}>
+              {/* Messages area */}
+              <div style={{ flex:1, overflowY:'auto', padding:'12px 10px', display:'flex', flexDirection:'column', gap:10 }}>
+                {!ev || (ev.chat||[]).length === 0 ? (
+                  <div style={{ flex:1, display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', padding:'40px 10px', color:C.textM, textAlign:'center' }}>
+                    <div style={{ fontSize:'2.2rem', marginBottom:10 }}>💬</div>
+                    <div style={{ fontSize:12, lineHeight:1.6 }}>{isRTL?'لا رسائل بعد\nابدأ الدردشة مع فريقك':'No messages yet\nStart chatting with your team'}</div>
+                  </div>
+                ) : (ev.chat||[]).map((msg, idx) => {
+                  // assign a stable color per author
+                  const AVATAR_COLORS = [C.load, C.setup, C.exec, C.unload, C.success, C.warning]
+                  const authorIdx = (ev.crewOwners||[]).indexOf(msg.author)
+                  const avatarColor = AVATAR_COLORS[(authorIdx >= 0 ? authorIdx : idx) % AVATAR_COLORS.length]
+                  const initials = msg.author.slice(0,2).toUpperCase()
+                  const prevAuthor = idx > 0 ? (ev.chat||[])[idx-1].author : null
+                  const sameAsPrev = prevAuthor === msg.author
+                  return (
+                    <div key={msg.id} style={{ display:'flex', gap:8, alignItems:'flex-end', marginTop: sameAsPrev ? 0 : 4, position:'relative' }}
+                      onMouseEnter={e => { if (isAdmin) { const btn = e.currentTarget.querySelector('.del-chat-btn') as HTMLElement; if(btn) btn.style.opacity='1' } }}
+                      onMouseLeave={e => { const btn = e.currentTarget.querySelector('.del-chat-btn') as HTMLElement; if(btn) btn.style.opacity='0' }}>
+                      {/* Avatar — only on first message in a group */}
+                      <div style={{ width:28, height:28, borderRadius:'50%', background: sameAsPrev ? 'transparent' : avatarColor+'33', border: sameAsPrev ? 'none' : `1px solid ${avatarColor}55`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, fontSize:9, fontWeight:800, color:avatarColor }}>
+                        {!sameAsPrev && initials}
+                      </div>
+                      {/* Bubble */}
+                      <div style={{ flex:1, minWidth:0 }}>
+                        {!sameAsPrev && (
+                          <div style={{ display:'flex', alignItems:'baseline', gap:6, marginBottom:3 }}>
+                            <span style={{ fontSize:11, fontWeight:700, color:avatarColor }}>{msg.author}</span>
+                            <span style={{ fontSize:9, color:C.textM }}>{msg.time}</span>
+                          </div>
+                        )}
+                        <div style={{ background:'rgba(255,255,255,0.05)', border:`1px solid rgba(255,255,255,0.07)`, borderRadius: sameAsPrev ? '4px 12px 12px 4px' : '4px 12px 12px 12px', padding:'8px 12px', fontSize:12, color:C.textP, lineHeight:1.5, wordBreak:'break-word' }}>
+                          {msg.text}
+                        </div>
+                        {sameAsPrev && (
+                          <div style={{ fontSize:9, color:C.textM, marginTop:2, paddingLeft:2 }}>{msg.time}</div>
+                        )}
+                      </div>
+                      {/* Delete — admin only, appears on hover */}
+                      {isAdmin && (
+                        <button className="del-chat-btn" onClick={() => deleteChatMsg(msg.id)}
+                          style={{ opacity:0, transition:'opacity .15s', position:'absolute', top:0, right:0, background:C.danger, border:'none', borderRadius:'50%', width:16, height:16, display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', color:'white', fontSize:9, fontWeight:900, lineHeight:1, flexShrink:0 }}>
+                          ×
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+                <div ref={chatEndRef} />
+              </div>
+
+              {/* Input area */}
+              {ev && (
+                <div style={{ padding:'10px 10px 12px', borderTop:`1px solid ${C.border}`, background:'rgba(0,0,0,0.2)', flexShrink:0 }}>
+                  {/* Current user badge */}
+                  <div style={{ display:'flex', alignItems:'center', gap:6, marginBottom:7 }}>
+                    <div style={{ width:20, height:20, borderRadius:'50%', background:`${C.load}33`, border:`1px solid ${C.load}55`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:8, fontWeight:800, color:C.load, flexShrink:0 }}>
+                      {(session?.user?.name||'U').slice(0,2).toUpperCase()}
+                    </div>
+                    <span style={{ fontSize:11, color:C.textS, fontWeight:600 }}>{session?.user?.name || 'User'}</span>
+                  </div>
+                  {/* Message input row */}
+                  <div style={{ display:'flex', gap:6 }}>
+                    <input
+                      value={chatMsg}
+                      onChange={e => setChatMsg(e.target.value)}
+                      onKeyDown={e => { if (e.key==='Enter' && !e.shiftKey) { e.preventDefault(); sendChat() } }}
+                      placeholder={isRTL?'اكتب رسالتك...':'Type a message...'}
+                      style={{ ...input(), flex:1, fontSize:12, padding:'8px 10px', borderRadius:8 }}
+                    />
+                    <button
+                      onClick={sendChat}
+                      disabled={!chatMsg.trim()}
+                      style={{ background: chatMsg.trim() ? C.load : 'rgba(255,255,255,0.06)', border:'none', borderRadius:8, width:36, height:36, display:'flex', alignItems:'center', justifyContent:'center', cursor: chatMsg.trim() ? 'pointer' : 'default', color: chatMsg.trim() ? 'black' : C.textM, fontSize:16, flexShrink:0, transition:'all .2s' }}>
+                      ➤
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : panelTab==='issues' ? (
+            /* ── ISSUES ───────────────────────────────────────────────────── */
+            <div style={{ flex:1, overflowY:'auto', padding:14 }}>
+              {ev ? (
                 ev.issues.filter(i=>i.status==='unresolved').length === 0 ? (
                   <div style={{ textAlign:'center', padding:'40px 10px', color:C.textM }}>
                     <div style={{ fontSize:'1.8rem', marginBottom:8 }}>🟢</div>
@@ -918,12 +1519,15 @@ export default function EventManagementPage() {
                     ))}
                   </div>
                 )
-              ) : null
-            ) : (
-              ev ? (
+              ) : null}
+            </div>
+          ) : (
+            /* ── ACTIVITY LOG ─────────────────────────────────────────────── */
+            <div style={{ flex:1, overflowY:'auto', padding:14 }}>
+              {ev ? (
                 ev.activityLog.length === 0 ? (
                   <div style={{ textAlign:'center', padding:'40px 10px', color:C.textM }}>
-                    <div style={{ fontSize:'1.8rem', marginBottom:8 }}>💬</div>
+                    <div style={{ fontSize:'1.8rem', marginBottom:8 }}>📋</div>
                     <div style={{ fontSize:12 }}>{isRTL?'لا سجلات بعد':'No logs yet'}</div>
                   </div>
                 ) : (
@@ -938,9 +1542,9 @@ export default function EventManagementPage() {
                     ))}
                   </div>
                 )
-              ) : null
-            )}
-          </div>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
 
@@ -969,12 +1573,159 @@ export default function EventManagementPage() {
                 <label style={{ fontSize:12, color:C.textM, display:'block', marginBottom:6 }}>{isRTL?'تاريخ الفعالية':'Event Date'}</label>
                 <input type="date" value={fDate} onChange={e=>setFDate(e.target.value)} style={input()} />
               </div>
+              {/* Event start time */}
+              <div>
+                <label style={{ fontSize:12, color:C.textM, display:'block', marginBottom:6 }}>
+                  🎬 {isRTL?'وقت بداية الفعالية':'Event Start Time'}
+                </label>
+                <input type="time" value={fStartTime} onChange={e=>setFStartTime(e.target.value)} style={input()} />
+              </div>
+              {/* Setup deadline — date + time */}
+              <div>
+                <label style={{ fontSize:12, color:C.textM, display:'block', marginBottom:6 }}>
+                  🔧 {isRTL?'موعد انتهاء التجهيزات (تاريخ + وقت)':'Setup Deadline (date + time)'}
+                </label>
+                <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:8 }}>
+                  <input type="date" value={fSetupDeadlineDate} onChange={e=>setFSetupDeadlineDate(e.target.value)}
+                    style={input()} placeholder={isRTL?'التاريخ':'Date'} />
+                  <input type="time" value={fSetupDeadline} onChange={e=>setFSetupDeadline(e.target.value)}
+                    style={input()} />
+                </div>
+              </div>
               <div style={{ display:'flex', gap:10, marginTop:6 }}>
                 <button onClick={saveEvent} style={btn(C.load,'black',{flex:1})}>{editEv?(isRTL?'حفظ التغييرات':'Save Changes'):(isRTL?'إنشاء الفعالية':'Create Event')}</button>
                 <button onClick={()=>setShowModal(false)} style={btn('rgba(255,255,255,0.05)',C.textS,{border:`1px solid ${C.border}`})}>{isRTL?'إلغاء':'Cancel'}</button>
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Permit Lightbox ──────────────────────────────────────────────── */}
+      {permitPreview && (
+        <div onClick={() => setPermitPreview(null)}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.88)', zIndex:2000, display:'flex', alignItems:'center', justifyContent:'center', cursor:'zoom-out', padding:20 }}>
+          <img src={permitPreview} alt="permit"
+            style={{ maxWidth:'90vw', maxHeight:'90vh', objectFit:'contain', borderRadius:10, boxShadow:'0 0 60px rgba(0,0,0,0.8)' }} />
+          <button onClick={() => setPermitPreview(null)}
+            style={{ position:'absolute', top:20, right:20, background:'rgba(255,255,255,0.1)', border:`1px solid rgba(255,255,255,0.15)`, borderRadius:'50%', width:38, height:38, color:'white', fontSize:20, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', lineHeight:1 }}>
+            ×
+          </button>
+        </div>
+      )}
+
+      {/* ── Archived Events Modal ─────────────────────────────────────────── */}
+      {showArchived && (
+        <div style={{ position:'fixed', inset:0, background:'rgba(4,6,12,0.82)', backdropFilter:'blur(8px)', zIndex:1000, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}>
+          <div style={{ ...card(), width:'100%', maxWidth:560, maxHeight:'80vh', display:'flex', flexDirection:'column', border:'1px solid rgba(255,255,255,0.12)', background:'rgba(12,16,30,0.96)', boxShadow:'0 24px 60px rgba(0,0,0,0.7)' }}>
+            {/* Header */}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', padding:'16px 20px', borderBottom:`1px solid ${C.border}`, flexShrink:0 }}>
+              <div>
+                <h3 style={{ fontWeight:700, fontSize:'1.1rem', marginBottom:2 }}>📦 {isRTL?'المشاريع المنتهية':'Archived Projects'}</h3>
+                <p style={{ fontSize:11, color:C.textM }}>{isRTL?'يمكن استعادة أي مشروع في أي وقت':'Any project can be restored at any time'}</p>
+              </div>
+              <button onClick={()=>setShowArchived(false)} style={{ background:'transparent', border:'none', color:C.textM, fontSize:'1.5rem', cursor:'pointer', lineHeight:1 }}>×</button>
+            </div>
+            {/* List */}
+            <div style={{ flex:1, overflowY:'auto', padding:16 }}>
+              {events.filter(e=>e.archived).length === 0 ? (
+                <div style={{ textAlign:'center', padding:'50px 20px', color:C.textM }}>
+                  <div style={{ fontSize:'3rem', marginBottom:12 }}>📂</div>
+                  <div style={{ fontSize:13 }}>{isRTL?'لا توجد مشاريع مؤرشفة بعد':'No archived projects yet'}</div>
+                </div>
+              ) : (
+                <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+                  {events.filter(e=>e.archived).map(e => {
+                    const lPct = e.loadingChecklist.length ? Math.round(e.loadingChecklist.filter(i=>i.loaded).length/e.loadingChecklist.length*100) : 0
+                    const uPct = e.loadingChecklist.filter(i=>i.loaded).length ? Math.round(e.loadingChecklist.filter(i=>i.unloaded).length/e.loadingChecklist.filter(i=>i.loaded).length*100) : 0
+                    const allT = Object.values(e.sectionSetup||{}).flat()
+                    const sPct = allT.length ? Math.round(allT.filter(t=>t.status==='done').length/allT.length*100) : 0
+                    const prog = Math.round((lPct+uPct+sPct)/3)
+                    return (
+                      <div key={e.id} style={{ background:'rgba(255,255,255,0.03)', border:`1px solid ${C.border}`, borderRadius:10, padding:'14px 16px' }}>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:10 }}>
+                          <div>
+                            <div style={{ fontWeight:700, fontSize:14, marginBottom:4 }}>{e.name}</div>
+                            <div style={{ display:'flex', flexWrap:'wrap', gap:'4px 14px', fontSize:11, color:C.textS }}>
+                              {e.client && <span>👤 {e.client}</span>}
+                              {e.venue  && <span>📍 {e.venue}</span>}
+                              {e.date   && <span>📅 {e.date}</span>}
+                            </div>
+                          </div>
+                          <div style={{ textAlign:'right', flexShrink:0 }}>
+                            <div style={{ fontSize:11, fontWeight:800, color:prog===100?C.success:C.warning }}>{prog}%</div>
+                            <div style={{ fontSize:9, color:C.textM }}>{isRTL?'اكتمال':'complete'}</div>
+                          </div>
+                        </div>
+                        {/* Progress bar */}
+                        <div style={{ height:3, background:'rgba(255,255,255,0.06)', borderRadius:2, overflow:'hidden', marginBottom:10 }}>
+                          <div style={{ height:'100%', width:`${prog}%`, background: prog===100?C.success:C.warning, transition:'width .4s', borderRadius:2 }}/>
+                        </div>
+                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+                          <span style={{ fontSize:10, color:C.textM }}>🗓 {isRTL?'أُرشف:':'Archived:'} {e.archivedAt||'–'}</span>
+                          <div style={{ display:'flex', gap:8 }}>
+                            <button onClick={()=>{ restoreEvent(e.id); setShowArchived(false); setActiveId(e.id) }}
+                              style={btn(C.success,undefined,{fontSize:11,padding:'5px 14px'})}>
+                              ↩ {isRTL?'استعادة':'Restore'}
+                            </button>
+                            <button onClick={()=>{ if(confirm(isRTL?'حذف نهائي؟':'Delete permanently?')) delEvent(e.id) }}
+                              style={{ background:'rgba(239,68,68,0.08)', border:'1px solid rgba(239,68,68,0.2)', borderRadius:6, padding:'5px 10px', fontSize:11, color:C.danger, cursor:'pointer' }}>
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Mobile Bottom Navigation Bar ─────────────────────────────────── */}
+      {isMobile && (
+        <div style={{ position:'fixed', bottom:0, left:0, right:0, height:52, background:'rgba(9,11,20,0.98)', borderTop:`1px solid ${C.border}`, display:'flex', zIndex:60 }}>
+          {/* Menu / Sidebar toggle */}
+          <button onClick={()=>{ setShowMobileSidebar(p=>!p); setShowMobilePanel(false) }}
+            style={{ flex:1, background:'transparent', border:'none', color: showMobileSidebar ? C.load : C.textM, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, fontSize:9, fontWeight:700 }}>
+            <span style={{fontSize:18}}>☰</span>
+            <span>{isRTL?'القائمة':'Menu'}</span>
+          </button>
+          {/* Chat */}
+          <button onClick={()=>{
+            if (panelTab==='chat' && showMobilePanel) { setShowMobilePanel(false) }
+            else { setPanelTab('chat'); setShowMobilePanel(true) }
+            setShowMobileSidebar(false)
+          }}
+            style={{ flex:1, background:'transparent', border:'none', color: showMobilePanel && panelTab==='chat' ? C.load : C.textM, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, fontSize:9, fontWeight:700 }}>
+            <span style={{fontSize:18}}>💬</span>
+            <span>{isRTL?'دردشة':'Chat'}</span>
+          </button>
+          {/* Issues */}
+          <button onClick={()=>{
+            if (panelTab==='issues' && showMobilePanel) { setShowMobilePanel(false) }
+            else { setPanelTab('issues'); setShowMobilePanel(true) }
+            setShowMobileSidebar(false)
+          }}
+            style={{ flex:1, background:'transparent', border:'none', color: showMobilePanel && panelTab==='issues' ? C.danger : C.textM, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, fontSize:9, fontWeight:700, position:'relative' }}>
+            <span style={{fontSize:18}}>⚠️</span>
+            {m.issues > 0 && (
+              <span style={{ position:'absolute', top:6, right:'calc(50% - 14px)', background:C.danger, color:'white', borderRadius:'50%', width:14, height:14, fontSize:8, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center' }}>{m.issues}</span>
+            )}
+            <span>{isRTL?'مشاكل':'Issues'}</span>
+          </button>
+          {/* Activity Log */}
+          <button onClick={()=>{
+            if (panelTab==='activity' && showMobilePanel) { setShowMobilePanel(false) }
+            else { setPanelTab('activity'); setShowMobilePanel(true) }
+            setShowMobileSidebar(false)
+          }}
+            style={{ flex:1, background:'transparent', border:'none', color: showMobilePanel && panelTab==='activity' ? C.setup : C.textM, cursor:'pointer', display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center', gap:2, fontSize:9, fontWeight:700 }}>
+            <span style={{fontSize:18}}>📋</span>
+            <span>{isRTL?'سجل':'Log'}</span>
+          </button>
         </div>
       )}
 

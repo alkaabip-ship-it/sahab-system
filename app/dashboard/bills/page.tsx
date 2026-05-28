@@ -170,26 +170,30 @@ export default function BillsPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-100">
-                  {[t.bills.billNumber, t.bills.supplier, t.bills.project, t.bills.amount, t.bills.date, t.bills.dueDate, t.bills.status].map(h => (
-                    <th key={h} className="text-right px-4 py-3 font-semibold text-slate-600">{h}</th>
-                  ))}
+                  <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.bills.billNumber}</th>
+                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{t.bills.supplier}</th>
+                  <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600">{t.bills.project}</th>
+                  <th className="text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.bills.amount}</th>
+                  <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.bills.date}</th>
+                  <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600 whitespace-nowrap">{t.bills.dueDate}</th>
+                  <th className="text-right px-4 py-3 font-semibold text-slate-600">{t.bills.status}</th>
                   {tab === 'unlinked' && <th className="text-right px-4 py-3 font-semibold text-slate-600">{t.projects.bills}</th>}
                 </tr>
               </thead>
               <tbody>
                 {bills.map((b) => (
                   <tr key={b.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="px-4 py-3 font-mono text-xs text-slate-500">{b.billNumber}</td>
+                    <td className="hidden sm:table-cell px-4 py-3 font-mono text-xs text-slate-500 whitespace-nowrap">{b.billNumber}</td>
                     <td className="px-4 py-3 text-slate-700">
                       {b.supplier ? <Link href={`/dashboard/suppliers/${b.supplier.id}`} className="hover:text-sky-600">{b.supplier.name}</Link> : <span className="text-slate-400">-</span>}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="hidden md:table-cell px-4 py-3">
                       {b.project ? <Link href={`/dashboard/projects/${b.project.id}`} className="text-sky-600 hover:text-sky-700 text-xs font-medium">{b.project.code}</Link>
                         : <span className="text-orange-400 text-xs">{t.bills.unlinked}</span>}
                     </td>
-                    <td className="px-4 py-3 font-semibold text-slate-800">{formatNum(b.amount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{formatDate(b.billDate, lang)}</td>
-                    <td className="px-4 py-3 text-xs">
+                    <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">{formatNum(b.amount)} <span className="text-xs font-normal text-slate-400">{t.common.aed}</span></td>
+                    <td className="hidden sm:table-cell px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{formatDate(b.billDate, lang)}</td>
+                    <td className="hidden md:table-cell px-4 py-3 text-xs">
                       {b.dueDate ? <span className={new Date(b.dueDate) < new Date() && b.status !== 'PAID' ? 'text-red-500 font-medium' : 'text-slate-500'}>{formatDate(b.dueDate, lang)}</span> : '-'}
                     </td>
                     <td className="px-4 py-3"><StatusPicker billId={b.id} current={b.status} onChanged={() => loadBills(tab)} t={t} /></td>

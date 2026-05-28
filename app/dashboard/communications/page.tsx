@@ -186,10 +186,10 @@ export default function CommunicationsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="flex flex-col md:flex-row gap-6">
 
         {/* ── Left: Contacts list ── */}
-        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden flex flex-col md:w-80 lg:w-96 flex-shrink-0">
           <div className="p-4 border-b border-slate-100 space-y-2">
             <div className="flex items-center gap-2">
               <input value={search} onChange={e => setSearch(e.target.value)}
@@ -245,7 +245,7 @@ export default function CommunicationsPage() {
         </div>
 
         {/* ── Right: Compose ── */}
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 min-w-0">
 
           {/* AI Generator */}
           <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-4 space-y-3">
@@ -253,7 +253,7 @@ export default function CommunicationsPage() {
               <HiSparkles size={16} className="text-purple-500" />
               {isRTL ? 'توليد النص بالذكاء الاصطناعي' : 'AI Text Generation'}
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-xs text-slate-500 mb-1 block">{isRTL ? 'القالب' : 'Template'}</label>
                 <select value={template} onChange={e => setTemplate(e.target.value)}

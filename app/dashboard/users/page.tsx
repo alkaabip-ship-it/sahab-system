@@ -3,10 +3,21 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { HiUsers, HiPlus, HiTrash, HiPencil, HiCheckCircle, HiXCircle, HiEyeSlash } from 'react-icons/hi2'
+import {
+  HiUsers, HiPlus, HiTrash, HiPencil, HiCheckCircle,
+  HiEyeSlash, HiClock, HiDevicePhoneMobile, HiComputerDesktop,
+  HiGlobeAlt,
+} from 'react-icons/hi2'
 import { Permissions, DEFAULT_VIEWER_PERMISSIONS, ADMIN_PERMISSIONS } from '@/lib/permissions'
 
 type User = { id: string; name: string; email: string; role: string; permissions: string | null; createdAt: string }
+type LoginLog = {
+  id: string
+  createdAt: string
+  ip: string | null
+  userAgent: string | null
+  user: { id: string; name: string; email: string; role: string }
+}
 
 const TAB_LABELS: Record<string, string> = {
   dashboard: 'لوحة التحكم', projects: 'المشاريع', suppliers: 'الموردون', bills: 'الفواتير',
@@ -38,9 +49,42 @@ function PermToggle({ label, checked, onChange }: { label: string; checked: bool
   )
 }
 
+/** Detect device type from user-agent string */
+function getDeviceIcon(ua: string | null) {
+  if (!ua) return <HiGlobeAlt size={15} className="text-slate-400" />
+  const u = ua.toLowerCase()
+  if (/mobile|iphone|android|ipad/.test(u)) return <HiDevicePhoneMobile size={15} className="text-sky-500" />
+  return <HiComputerDesktop size={15} className="text-slate-500" />
+}
+
+/** Shorten/describe user-agent */
+function describeUA(ua: string | null): string {
+  if (!ua) return 'غير معروف'
+  const u = ua.toLowerCase()
+  if (u.includes('iphone'))  return 'iPhone'
+  if (u.includes('ipad'))    return 'iPad'
+  if (u.includes('android')) return 'Android'
+  if (u.includes('mac'))     return 'Mac'
+  if (u.includes('windows')) return 'Windows'
+  if (u.includes('linux'))   return 'Linux'
+  return 'متصفح'
+}
+
+function formatDate(iso: string) {
+  const d = new Date(iso)
+  return d.toLocaleString('ar-AE', {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
 export default function UsersPage() {
   const { data: session } = useSession()
   const router = useRouter()
+
+  const [activeTab, setActiveTab] = useState<'users' | 'logs'>('users')
+
+  // --- Users state ---
   const [users, setUsers]       = useState<User[]>([])
   const [loading, setLoading]   = useState(true)
   const [editing, setEditing]   = useState<User | null>(null)
@@ -55,17 +99,36 @@ export default function UsersPage() {
   const [role, setRole]         = useState('VIEWER')
   const [perms, setPerms]       = useState<Permissions>(DEFAULT_VIEWER_PERMISSIONS)
 
+  // --- Login logs state ---
+  const [logs, setLogs]           = useState<LoginLog[]>([])
+  const [logsLoading, setLogsLoading] = useState(false)
+  const [filterUser, setFilterUser]   = useState<string>('all')
+
   useEffect(() => {
     if (session && (session.user as any).role !== 'ADMIN') router.replace('/dashboard')
   }, [session])
 
   useEffect(() => { loadUsers() }, [])
 
+  useEffect(() => {
+    if (activeTab === 'logs') loadLogs()
+  }, [activeTab])
+
   async function loadUsers() {
     setLoading(true)
     const res = await fetch('/api/users').then(r => r.json())
     setUsers(res.users || [])
     setLoading(false)
+  }
+
+  async function loadLogs(userId?: string) {
+    setLogsLoading(true)
+    const url = userId && userId !== 'all'
+      ? `/api/users/login-logs?userId=${userId}`
+      : '/api/users/login-logs'
+    const res = await fetch(url).then(r => r.json())
+    setLogs(res.logs || [])
+    setLogsLoading(false)
   }
 
   function openAdd() {
@@ -109,71 +172,206 @@ export default function UsersPage() {
 
   if ((session?.user as any)?.role !== 'ADMIN') return null
 
+  // Group logs by day
+  const groupedLogs: Record<string, LoginLog[]> = {}
+  logs.forEach(log => {
+    const day = new Date(log.createdAt).toLocaleDateString('ar-AE', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+    if (!groupedLogs[day]) groupedLogs[day] = []
+    groupedLogs[day].push(log)
+  })
+
   return (
     <div className="space-y-6 max-w-5xl">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
           <HiUsers size={24} className="text-sky-500" /> إدارة المستخدمين
         </h2>
-        <button onClick={openAdd}
-          className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-xl transition-all">
-          <HiPlus size={18} /> مستخدم جديد
+        {activeTab === 'users' && (
+          <button onClick={openAdd}
+            className="flex items-center gap-2 px-4 py-2 bg-sky-500 hover:bg-sky-600 text-white text-sm font-medium rounded-xl transition-all">
+            <HiPlus size={18} /> مستخدم جديد
+          </button>
+        )}
+      </div>
+
+      {/* Tab switcher */}
+      <div className="flex gap-1 bg-slate-100 p-1 rounded-xl w-fit">
+        <button
+          onClick={() => setActiveTab('users')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'users' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="flex items-center gap-2"><HiUsers size={16} /> المستخدمون</span>
+        </button>
+        <button
+          onClick={() => setActiveTab('logs')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+            activeTab === 'logs' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          <span className="flex items-center gap-2"><HiClock size={16} /> سجل الدخول</span>
         </button>
       </div>
 
-      {/* Users table */}
-      <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
-        {loading ? (
-          <div className="flex items-center justify-center py-16">
-            <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-100">
-                {['الاسم', 'الإيميل', 'الدور', 'الأرقام المالية', 'التبويبات', ''].map(h => (
-                  <th key={h} className="text-right px-4 py-3 font-semibold text-slate-600">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {users.map(u => {
-                const p = parsePerms(u.permissions, u.role)
-                const visibleTabs = u.role === 'ADMIN' ? 'الكل' : Object.entries(p.tabs).filter(([, v]) => v).map(([k]) => TAB_LABELS[k]).join('، ')
-                return (
-                  <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50">
-                    <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
-                    <td className="px-4 py-3 text-slate-500 text-xs">{u.email}</td>
-                    <td className="px-4 py-3">
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
-                        {u.role === 'ADMIN' ? 'مدير' : 'مستخدم'}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3">
-                      {p.viewFinancials
-                        ? <span className="flex items-center gap-1 text-green-600 text-xs"><HiCheckCircle size={14} /> مرئية</span>
-                        : <span className="flex items-center gap-1 text-red-400 text-xs"><HiEyeSlash size={14} /> مخفية</span>}
-                    </td>
-                    <td className="px-4 py-3 text-xs text-slate-500 max-w-[200px] truncate" title={visibleTabs}>{visibleTabs}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-2 justify-end">
-                        <button onClick={() => openEdit(u)}
-                          className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-all">
-                          <HiPencil size={16} />
-                        </button>
-                        <button onClick={() => deleteUser(u)}
-                          className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
-                          <HiTrash size={16} />
-                        </button>
-                      </div>
-                    </td>
+      {/* ── USERS TAB ── */}
+      {activeTab === 'users' && (
+        <div className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+          {loading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-100">
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">الاسم</th>
+                    <th className="hidden sm:table-cell text-right px-4 py-3 font-semibold text-slate-600">الإيميل</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600">الدور</th>
+                    <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600">الأرقام المالية</th>
+                    <th className="hidden md:table-cell text-right px-4 py-3 font-semibold text-slate-600">التبويبات</th>
+                    <th className="text-right px-4 py-3 font-semibold text-slate-600"></th>
                   </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        )}
-      </div>
+                </thead>
+                <tbody>
+                  {users.map(u => {
+                    const p = parsePerms(u.permissions, u.role)
+                    const visibleTabs = u.role === 'ADMIN' ? 'الكل' : Object.entries(p.tabs).filter(([, v]) => v).map(([k]) => TAB_LABELS[k]).join('، ')
+                    return (
+                      <tr key={u.id} className="border-b border-slate-50 hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-800">{u.name}</td>
+                        <td className="hidden sm:table-cell px-4 py-3 text-slate-500 text-xs">{u.email}</td>
+                        <td className="px-4 py-3">
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-slate-100 text-slate-600'}`}>
+                            {u.role === 'ADMIN' ? 'مدير' : 'مستخدم'}
+                          </span>
+                        </td>
+                        <td className="hidden md:table-cell px-4 py-3">
+                          {p.viewFinancials
+                            ? <span className="flex items-center gap-1 text-green-600 text-xs"><HiCheckCircle size={14} /> مرئية</span>
+                            : <span className="flex items-center gap-1 text-red-400 text-xs"><HiEyeSlash size={14} /> مخفية</span>}
+                        </td>
+                        <td className="hidden md:table-cell px-4 py-3 text-xs text-slate-500 max-w-[200px] truncate" title={visibleTabs}>{visibleTabs}</td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2 justify-end">
+                            <button onClick={() => openEdit(u)}
+                              className="p-1.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-lg transition-all">
+                              <HiPencil size={16} />
+                            </button>
+                            <button onClick={() => deleteUser(u)}
+                              className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all">
+                              <HiTrash size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── LOGIN LOGS TAB ── */}
+      {activeTab === 'logs' && (
+        <div className="space-y-4">
+          {/* Filter bar */}
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-sm text-slate-600 font-medium">تصفية حسب المستخدم:</label>
+            <select
+              value={filterUser}
+              onChange={e => {
+                setFilterUser(e.target.value)
+                loadLogs(e.target.value)
+              }}
+              className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-sky-400"
+            >
+              <option value="all">جميع المستخدمين</option>
+              {users.map(u => (
+                <option key={u.id} value={u.id}>{u.name}</option>
+              ))}
+            </select>
+            <button
+              onClick={() => loadLogs(filterUser)}
+              className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-sm rounded-lg transition-all"
+            >
+              تحديث
+            </button>
+            {logs.length > 0 && (
+              <span className="text-xs text-slate-400 mr-auto">{logs.length} سجل</span>
+            )}
+          </div>
+
+          {logsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 border-4 border-sky-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : logs.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-100 shadow-sm p-12 text-center">
+              <HiClock size={40} className="text-slate-200 mx-auto mb-3" />
+              <p className="text-slate-400 text-sm">لا توجد سجلات دخول بعد</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(groupedLogs).map(([day, dayLogs]) => (
+                <div key={day} className="bg-white rounded-xl border border-slate-100 shadow-sm overflow-hidden">
+                  {/* Day header */}
+                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-500">{day}</span>
+                    <span className="text-xs text-slate-300">•</span>
+                    <span className="text-xs text-slate-400">{dayLogs.length} دخول</span>
+                  </div>
+                  {/* Log rows */}
+                  <div className="divide-y divide-slate-50">
+                    {dayLogs.map(log => (
+                      <div key={log.id} className="flex items-center gap-3 px-4 py-3 hover:bg-slate-50 transition-colors">
+                        {/* Avatar */}
+                        <div className="w-9 h-9 bg-sky-100 rounded-full flex items-center justify-center flex-shrink-0">
+                          <span className="text-sky-600 font-bold text-sm">
+                            {log.user.name?.charAt(0) || '؟'}
+                          </span>
+                        </div>
+
+                        {/* Name + role */}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-medium text-slate-800">{log.user.name}</span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                              log.user.role === 'ADMIN' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-500'
+                            }`}>
+                              {log.user.role === 'ADMIN' ? 'مدير' : 'مستخدم'}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                            <span className="text-xs text-slate-400">{log.user.email}</span>
+                            {log.ip && (
+                              <span className="text-xs text-slate-300 font-mono">{log.ip}</span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Device + time */}
+                        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                          <div className="flex items-center gap-1.5">
+                            {getDeviceIcon(log.userAgent)}
+                            <span className="text-xs text-slate-500">{describeUA(log.userAgent)}</span>
+                          </div>
+                          <span className="text-xs text-slate-400">
+                            {new Date(log.createdAt).toLocaleTimeString('ar-AE', { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Add/Edit drawer */}
       {adding && (

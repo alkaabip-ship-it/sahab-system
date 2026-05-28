@@ -1,10 +1,20 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import Providers from './providers'
 
 export const metadata: Metadata = {
   title: 'سحاب - نظام إدارة المعارض والفعاليات',
   description: 'نظام إدارة داخلي لشركة سحاب لتنظيم المعارض والفعاليات',
+  icons: {
+    icon: '/sahab-logo.jpg',
+    apple: '/sahab-logo.jpg',
+  },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
 }
 
 export default function RootLayout({
