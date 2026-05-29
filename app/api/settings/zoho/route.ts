@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
     await prisma.setting.upsert({
       where: { key },
       update: { value },
-      create: { key, value },
+      create: { id: key, key, value },
     })
   }
 

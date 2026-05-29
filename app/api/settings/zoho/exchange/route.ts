@@ -53,20 +53,20 @@ export async function POST(req: NextRequest) {
         prisma.setting.upsert({
           where: { key: 'ZOHO_REFRESH_TOKEN' },
           update: { value: refresh_token },
-          create: { key: 'ZOHO_REFRESH_TOKEN', value: refresh_token },
+          create: { id: 'ZOHO_REFRESH_TOKEN', key: 'ZOHO_REFRESH_TOKEN', value: refresh_token },
         }),
         access_token
           ? prisma.setting.upsert({
               where: { key: 'ZOHO_ACCESS_TOKEN' },
               update: { value: access_token },
-              create: { key: 'ZOHO_ACCESS_TOKEN', value: access_token },
+              create: { id: 'ZOHO_ACCESS_TOKEN', key: 'ZOHO_ACCESS_TOKEN', value: access_token },
             })
           : Promise.resolve(),
         access_token && expires_in
           ? prisma.setting.upsert({
               where: { key: 'ZOHO_TOKEN_EXPIRES_AT' },
               update: { value: String(now + expires_in * 1000) },
-              create: { key: 'ZOHO_TOKEN_EXPIRES_AT', value: String(now + expires_in * 1000) },
+              create: { id: 'ZOHO_TOKEN_EXPIRES_AT', key: 'ZOHO_TOKEN_EXPIRES_AT', value: String(now + expires_in * 1000) },
             })
           : Promise.resolve(),
       ])
@@ -79,12 +79,12 @@ export async function POST(req: NextRequest) {
         prisma.setting.upsert({
           where: { key: 'ZOHO_ACCESS_TOKEN' },
           update: { value: access_token },
-          create: { key: 'ZOHO_ACCESS_TOKEN', value: access_token },
+          create: { id: 'ZOHO_ACCESS_TOKEN', key: 'ZOHO_ACCESS_TOKEN', value: access_token },
         }),
         prisma.setting.upsert({
           where: { key: 'ZOHO_TOKEN_EXPIRES_AT' },
           update: { value: String(now + (expires_in ?? 3600) * 1000) },
-          create: { key: 'ZOHO_TOKEN_EXPIRES_AT', value: String(now + (expires_in ?? 3600) * 1000) },
+          create: { id: 'ZOHO_TOKEN_EXPIRES_AT', key: 'ZOHO_TOKEN_EXPIRES_AT', value: String(now + (expires_in ?? 3600) * 1000) },
         }),
       ])
       return NextResponse.json({

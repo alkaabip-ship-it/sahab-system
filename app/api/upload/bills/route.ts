@@ -250,7 +250,7 @@ export async function POST(req: NextRequest) {
     await prisma.setting.upsert({
       where:  { key: 'LAST_SYNC_AT' },
       update: { value: new Date().toISOString() },
-      create: { key: 'LAST_SYNC_AT', value: new Date().toISOString() },
+      create: { id: 'LAST_SYNC_AT', key: 'LAST_SYNC_AT', value: new Date().toISOString() },
     })
 
     return NextResponse.json({
