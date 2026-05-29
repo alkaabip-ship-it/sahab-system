@@ -38,6 +38,19 @@ function SidebarNav({ sidebarOpen, onClose }: { sidebarOpen: boolean; onClose?: 
   const perms = usePermissions()
   const role = (session?.user as any)?.role
 
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    fetch('/api/tasks')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data?.tasks) return
+        const count = data.tasks.filter((t: any) => t.status === 'PENDING').length
+        setPendingCount(count)
+      })
+      .catch(() => {})
+  }, [pathname]) // refresh count whenever user navigates
+
   const allNavItems = [
     { href: '/dashboard',                 label: t.nav.dashboard,       icon: <HiSquares2X2 size={20} />,           key: 'dashboard' },
     { href: '/dashboard/projects',        label: t.nav.projects,        icon: <HiClipboardDocumentList size={20} />, key: 'projects' },
@@ -70,17 +83,40 @@ function SidebarNav({ sidebarOpen, onClose }: { sidebarOpen: boolean; onClose?: 
 
   return (
     <nav className="flex-1 py-4 overflow-y-auto sidebar-nav">
-      {navItems.map((item) => (
-        <Link key={item.href} href={item.href}
-          onClick={onClose}
-          className={`flex items-center gap-3 px-4 py-3 mx-2 mb-1 rounded-lg transition-all duration-200 group ${
-            isActive(item.href) ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-700 hover:text-white'
-          }`}>
-          <span className={`flex-shrink-0 transition-transform duration-200 ${isActive(item.href) ? '' : 'group-hover:scale-110'}`}>{item.icon}</span>
-          {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-          {sidebarOpen && isActive(item.href) && <span className="ms-auto w-1.5 h-1.5 rounded-full bg-white opacity-80" />}
-        </Link>
-      ))}
+      {navItems.map((item) => {
+        const isTasksItem = item.key === 'tasks'
+        const showBadge   = isTasksItem && pendingCount > 0
+        return (
+          <Link key={item.href} href={item.href}
+            onClick={onClose}
+            className={`flex items-center gap-3 px-4 py-3 mx-2 mb-1 rounded-lg transition-all duration-200 group ${
+              isActive(item.href) ? 'bg-sky-500 text-white shadow-md' : 'text-slate-400 hover:bg-slate-700 hover:text-white'
+            }`}>
+
+            {/* Icon — with a small red dot when collapsed */}
+            <span className={`relative flex-shrink-0 transition-transform duration-200 ${isActive(item.href) ? '' : 'group-hover:scale-110'}`}>
+              {item.icon}
+              {!sidebarOpen && showBadge && (
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-slate-800" />
+              )}
+            </span>
+
+            {/* Label + badge when expanded */}
+            {sidebarOpen && (
+              <>
+                <span className="text-sm font-medium flex-1">{item.label}</span>
+                {showBadge ? (
+                  <span className="ms-auto flex items-center justify-center min-w-[20px] h-5 px-1.5 bg-red-500 text-white text-[11px] font-bold rounded-full leading-none">
+                    {pendingCount > 99 ? '99+' : pendingCount}
+                  </span>
+                ) : (
+                  isActive(item.href) && <span className="ms-auto w-1.5 h-1.5 rounded-full bg-white opacity-80" />
+                )}
+              </>
+            )}
+          </Link>
+        )
+      })}
     </nav>
   )
 }
