@@ -94,6 +94,7 @@ export async function PUT(
         ...(email !== undefined && { email }),
         ...(serviceType && { serviceType }),
         ...(recommendation && { recommendation }),
+        updatedAt: new Date(),
       },
     })
 

@@ -64,11 +64,13 @@ export async function POST(req: NextRequest) {
 
     const supplier = await prisma.supplier.create({
       data: {
+        id: randomUUID(),
         name,
         phone: phone || null,
         email: email || null,
         serviceType,
         recommendation: 'UNDER_REVIEW',
+        updatedAt: new Date(),
       },
     })
 
