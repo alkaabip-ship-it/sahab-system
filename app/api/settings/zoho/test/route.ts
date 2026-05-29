@@ -10,8 +10,8 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
 
   // 1. Check required fields
-  const keys = ['ZOHO_ORGANIZATION_ID', 'ZOHO_ACCESS_TOKEN']
-  const settings = await prisma.setting.findMany({ where: { key: { in: keys } } })
+  const keys = ['ZOHO_CLIENT_ID', 'ZOHO_CLIENT_SECRET', 'ZOHO_ORGANIZATION_ID']
+  const settings = await prisma.setting.findMany({ where: { key: { in: [...keys, 'ZOHO_ACCESS_TOKEN', 'ZOHO_REFRESH_TOKEN'] } } })
   const map = Object.fromEntries(settings.map(s => [s.key, s.value]))
 
   const missing = keys.filter(k => !map[k] && !process.env[k])
@@ -20,6 +20,14 @@ export async function GET() {
       ok: false,
       step: 'missing_fields',
       message: `الحقول التالية فارغة: ${missing.join(', ')}`,
+    })
+  }
+
+  if (!map['ZOHO_ACCESS_TOKEN'] && !map['ZOHO_REFRESH_TOKEN'] && !process.env.ZOHO_ACCESS_TOKEN) {
+    return NextResponse.json({
+      ok: false,
+      step: 'not_connected',
+      message: 'لم يتم ربط Zoho بعد — اضغط "ربط Zoho" بعد حفظ Client ID و Client Secret',
     })
   }
 

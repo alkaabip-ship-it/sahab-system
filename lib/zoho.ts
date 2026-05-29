@@ -5,18 +5,72 @@ import { prisma } from './prisma'
 import { calculateSupplierRecommendation } from './utils'
 
 const ZOHO_BASE_URL = 'https://www.zohoapis.com/books/v3'
+const ZOHO_AUTH_URL = 'https://accounts.zoho.com/oauth/v2/token'
 
 /**
- * Returns the Zoho Access Token stored in Settings (or env var).
- * No refresh flow — user pastes the token directly in Settings page.
+ * Returns a valid Zoho Access Token.
+ * Uses cached token if still valid; auto-refreshes via refresh_token if expired.
+ * If no refresh token, throws asking user to reconnect from Settings.
  */
 export async function getAccessToken(): Promise<string> {
-  const setting = await prisma.setting.findUnique({ where: { key: 'ZOHO_ACCESS_TOKEN' } })
-  const token = setting?.value || process.env.ZOHO_ACCESS_TOKEN
-  if (!token) {
-    throw new Error('Access Token غير موجود — أضفه في صفحة الإعدادات تحت حقل "Access Token"')
+  // 1. Check if cached access token is still valid
+  const [tokenSetting, expiresSetting] = await Promise.all([
+    prisma.setting.findUnique({ where: { key: 'ZOHO_ACCESS_TOKEN' } }),
+    prisma.setting.findUnique({ where: { key: 'ZOHO_TOKEN_EXPIRES_AT' } }),
+  ])
+
+  const now       = Date.now()
+  const expiresAt = parseInt(expiresSetting?.value || '0')
+  const cached    = tokenSetting?.value || process.env.ZOHO_ACCESS_TOKEN
+
+  if (cached && expiresAt > now + 60000) {
+    return cached  // still valid for at least 1 minute
   }
-  return token
+
+  // 2. Try to refresh using stored refresh token
+  const [dbRefresh, dbClientId, dbClientSecret] = await Promise.all([
+    prisma.setting.findUnique({ where: { key: 'ZOHO_REFRESH_TOKEN' } }),
+    prisma.setting.findUnique({ where: { key: 'ZOHO_CLIENT_ID' } }),
+    prisma.setting.findUnique({ where: { key: 'ZOHO_CLIENT_SECRET' } }),
+  ])
+
+  const refreshToken = dbRefresh?.value     || process.env.ZOHO_REFRESH_TOKEN
+  const clientId     = dbClientId?.value    || process.env.ZOHO_CLIENT_ID
+  const clientSecret = dbClientSecret?.value || process.env.ZOHO_CLIENT_SECRET
+
+  if (!refreshToken || !clientId || !clientSecret) {
+    throw new Error('انتهت جلسة Zoho — اضغط "ربط Zoho" في صفحة الإعدادات للاتصال من جديد')
+  }
+
+  const response = await axios.post(ZOHO_AUTH_URL, null, {
+    params: {
+      refresh_token: refreshToken,
+      client_id:     clientId,
+      client_secret: clientSecret,
+      grant_type:    'refresh_token',
+    },
+  })
+
+  const { access_token, expires_in, error } = response.data
+  if (!access_token) {
+    throw new Error(`Zoho رفض التجديد: ${error || JSON.stringify(response.data)}`)
+  }
+
+  // Cache the new access token
+  await Promise.all([
+    prisma.setting.upsert({
+      where:  { key: 'ZOHO_ACCESS_TOKEN' },
+      update: { value: access_token },
+      create: { id: 'ZOHO_ACCESS_TOKEN', key: 'ZOHO_ACCESS_TOKEN', value: access_token },
+    }),
+    prisma.setting.upsert({
+      where:  { key: 'ZOHO_TOKEN_EXPIRES_AT' },
+      update: { value: String(now + (expires_in ?? 3600) * 1000) },
+      create: { id: 'ZOHO_TOKEN_EXPIRES_AT', key: 'ZOHO_TOKEN_EXPIRES_AT', value: String(now + (expires_in ?? 3600) * 1000) },
+    }),
+  ])
+
+  return access_token
 }
 
 // ── Generic paginated fetcher (no DB calls) ──────────────────────────────
