@@ -5,7 +5,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
-const KEYS = ['ZOHO_CLIENT_ID', 'ZOHO_CLIENT_SECRET', 'ZOHO_ORGANIZATION_ID', 'ZOHO_REFRESH_TOKEN']
+const KEYS = ['ZOHO_ORGANIZATION_ID', 'ZOHO_ACCESS_TOKEN']
 
 export async function GET() {
   const session = await getServerSession(authOptions)

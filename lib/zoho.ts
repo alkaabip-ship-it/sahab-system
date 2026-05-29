@@ -1,72 +1,22 @@
 // @ts-nocheck
 import axios from 'axios'
+import { randomUUID } from 'crypto'
 import { prisma } from './prisma'
 import { calculateSupplierRecommendation } from './utils'
 
 const ZOHO_BASE_URL = 'https://www.zohoapis.com/books/v3'
-const ZOHO_AUTH_URL = 'https://accounts.zoho.com/oauth/v2/token'
 
+/**
+ * Returns the Zoho Access Token stored in Settings (or env var).
+ * No refresh flow — user pastes the token directly in Settings page.
+ */
 export async function getAccessToken(): Promise<string> {
-  // Check cached token
-  const tokenSetting = await prisma.setting.findUnique({
-    where: { key: 'ZOHO_ACCESS_TOKEN' },
-  })
-  const expiresSetting = await prisma.setting.findUnique({
-    where: { key: 'ZOHO_TOKEN_EXPIRES_AT' },
-  })
-
-  const now = Date.now()
-  const expiresAt = parseInt(expiresSetting?.value || '0')
-
-  if (tokenSetting?.value && expiresAt > now + 60000) {
-    return tokenSetting.value
+  const setting = await prisma.setting.findUnique({ where: { key: 'ZOHO_ACCESS_TOKEN' } })
+  const token = setting?.value || process.env.ZOHO_ACCESS_TOKEN
+  if (!token) {
+    throw new Error('Access Token غير موجود — أضفه في صفحة الإعدادات تحت حقل "Access Token"')
   }
-
-  // Refresh token — read from DB first, fall back to env
-  const [dbRefresh, dbClientId, dbClientSecret] = await Promise.all([
-    prisma.setting.findUnique({ where: { key: 'ZOHO_REFRESH_TOKEN' } }),
-    prisma.setting.findUnique({ where: { key: 'ZOHO_CLIENT_ID' } }),
-    prisma.setting.findUnique({ where: { key: 'ZOHO_CLIENT_SECRET' } }),
-  ])
-  const refreshToken  = dbRefresh?.value     || process.env.ZOHO_REFRESH_TOKEN
-  const clientId      = dbClientId?.value    || process.env.ZOHO_CLIENT_ID
-  const clientSecret  = dbClientSecret?.value || process.env.ZOHO_CLIENT_SECRET
-
-  if (!refreshToken || !clientId || !clientSecret) {
-    throw new Error('بيانات اعتماد Zoho غير مكتملة — أضفها في صفحة الإعدادات')
-  }
-
-  const response = await axios.post(ZOHO_AUTH_URL, null, {
-    params: {
-      refresh_token: refreshToken,
-      client_id: clientId,
-      client_secret: clientSecret,
-      grant_type: 'refresh_token',
-    },
-  })
-
-  const { access_token, expires_in, error } = response.data
-
-  if (!access_token) {
-    throw new Error(`Zoho رفض الاتصال: ${error || JSON.stringify(response.data)}`)
-  }
-
-  await prisma.setting.upsert({
-    where: { key: 'ZOHO_ACCESS_TOKEN' },
-    update: { value: access_token },
-    create: { key: 'ZOHO_ACCESS_TOKEN', value: access_token },
-  })
-
-  await prisma.setting.upsert({
-    where: { key: 'ZOHO_TOKEN_EXPIRES_AT' },
-    update: { value: String(now + expires_in * 1000) },
-    create: {
-      key: 'ZOHO_TOKEN_EXPIRES_AT',
-      value: String(now + expires_in * 1000),
-    },
-  })
-
-  return access_token
+  return token
 }
 
 // ── Generic paginated fetcher (no DB calls) ──────────────────────────────
@@ -119,12 +69,14 @@ async function writeVendors(zohoVendors: any[]): Promise<number> {
         updatedAt: new Date(),
       },
       create: {
+        id:             randomUUID(),
         zohoId,
         name:           zohoName  ?? '',
         phone:          zohoPhone,
         email:          zohoEmail,
         serviceType,
         recommendation: 'UNDER_REVIEW',
+        updatedAt:      new Date(),
       },
     })
   }
@@ -144,11 +96,13 @@ async function writeCustomers(zohoCustomers: any[]): Promise<number> {
         updatedAt: new Date(),
       },
       create: {
+        id:      randomUUID(),
         zohoId:  c.contact_id,
         name:    c.contact_name,
         phone:   c.phone || c.mobile || null,
         email:   c.email || null,
         company: c.company_name || null,
+        updatedAt: new Date(),
       },
     })
   }
@@ -364,9 +318,9 @@ export async function fullSync(): Promise<{
   await recalculateAllSupplierRecommendations()
 
   await prisma.setting.upsert({
-    where: { key: 'LAST_SYNC_AT' },
+    where:  { key: 'LAST_SYNC_AT' },
     update: { value: new Date().toISOString() },
-    create: { key: 'LAST_SYNC_AT', value: new Date().toISOString() },
+    create: { id: 'LAST_SYNC_AT', key: 'LAST_SYNC_AT', value: new Date().toISOString() },
   })
 
   await prisma.zohoSyncLog.create({

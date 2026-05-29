@@ -10,7 +10,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
 
   // 1. Check required fields
-  const keys = ['ZOHO_CLIENT_ID', 'ZOHO_CLIENT_SECRET', 'ZOHO_ORGANIZATION_ID', 'ZOHO_REFRESH_TOKEN']
+  const keys = ['ZOHO_ORGANIZATION_ID', 'ZOHO_ACCESS_TOKEN']
   const settings = await prisma.setting.findMany({ where: { key: { in: keys } } })
   const map = Object.fromEntries(settings.map(s => [s.key, s.value]))
 
